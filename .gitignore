@@ -1,0 +1,12 @@
+# 가상환경
+myvenv/
+
+# Python
+__pycache__/
+*.pyc
+
+# 환경 변수 (비밀번호 등)
+.env
+
+# 생성된 CSV (prepare_data.py로 생성 가능)
+data/region_stats.csv

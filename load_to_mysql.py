@@ -94,16 +94,16 @@ def main():
         sys.exit(1)
 
     try:
-        with conn.cursor() as cur:
-            cur.execute(DDL_DROP)
-            cur.execute(DDL_CREATE)
-            print(f"✅ 테이블 재생성: {TABLE}")
+        # with conn.cursor() as cur:
+        #     cur.execute(DDL_DROP)
+        #     cur.execute(DDL_CREATE)
+        #     print(f"✅ 테이블 재생성: {TABLE}")
 
-            rows = df[INSERT_COLS].values.tolist()
-            cur.executemany(INSERT_SQL, rows)
-            print(f"✅ INSERT 완료: {cur.rowcount}건")
+        #     rows = df[INSERT_COLS].values.tolist()
+        #     cur.executemany(INSERT_SQL, rows)
+        #     print(f"✅ INSERT 완료: {cur.rowcount}건")
 
-        conn.commit()
+        # conn.commit()
 
         with conn.cursor() as cur:
             print("\n🔍 검증 1) 시도별 페르소나 코드:")

@@ -28,6 +28,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from db_config import get_engine
+from news_api import build_news_query, fetch_naver_news, has_naver_news_keys
 
 # ════════════════════════════════════════
 # 페이지 설정 & 상수
@@ -214,6 +215,14 @@ def load_car_image(car_id: int):
     except Exception:
         return None
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def load_news_articles(query: str, display: int = 6):
+    """네이버 뉴스 API 결과를 30분 동안 캐시."""
+    try:
+        return fetch_naver_news(query=query, display=display, sort="date")
+    except Exception:
+        return []
+    
 
 geojson_data = load_geojson()
 df_stats = load_region_stats()
@@ -355,6 +364,46 @@ def render_recommended_cars(persona: str, cars: pd.DataFrame):
                     
                 st.markdown(f"✨ **사용자의 [{persona}] 성향에 기반하여 1:1로 큐레이팅된 모델입니다.**")
                 st.markdown("차량과 관련된 세부적인 정보나 유지 관리 팁은 하단의 FAQ를 확인해 보세요.")
+
+def render_news_section(persona: str, cars: pd.DataFrame, title: str = "최신 자동차 뉴스"):
+    """추천 차량/브랜드 기반 최신 뉴스 섹션."""
+    rec = get_recommended_cars(persona, cars)
+
+    brands: list[str] = []
+    models: list[str] = []
+
+    if not rec.empty:
+        if "brand" in rec.columns:
+            brands = rec["brand"].dropna().astype(str).unique().tolist()
+        if "car_model" in rec.columns:
+            models = rec["car_model"].dropna().astype(str).head(2).tolist()
+
+    query = build_news_query(brands=brands, car_models=models)
+
+    st.subheader(title)
+
+    if not has_naver_news_keys():
+        st.info(
+            "네이버 뉴스 API 키가 아직 설정되지 않았습니다. "
+            ".env 파일에 NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET을 추가하면 최신 뉴스가 표시됩니다."
+        )
+        return
+
+    articles = load_news_articles(query, display=6)
+
+    st.caption(f"뉴스 검색어: {query}")
+
+    if not articles:
+        st.info("현재 불러올 수 있는 뉴스가 없습니다. API 키, 검색 API 권한, 네트워크 상태를 확인해 주세요.")
+        return
+
+    for article in articles:
+        with st.container(border=True):
+            st.markdown(f"**[{article['title']}]({article['link']})**")
+            if article.get("published_at"):
+                st.caption(article["published_at"])
+            if article.get("description"):
+                st.write(article["description"])
 
 
 def render_faq_list(
@@ -620,7 +669,11 @@ with tab1:
 
     st.divider()
 
-    st.subheader(f"💡 [{persona}] 성향 맞춤 FAQ")
+    render_news_section(persona, cars_df, title=f"📰 [{persona}] 추천 차량 관련 최신 뉴스")
+
+    st.divider()
+
+    st.subheader(f"💬 [{persona}] 성향 맞춤 FAQ")
     render_faq_list(persona, faq_df, cars_df, top_n=10)
 
 
@@ -705,10 +758,14 @@ with tab2:
 
         st.divider()
 
-        st.markdown(f"##### 🚗 당신([{my_persona}])을 위한 완벽한 매칭 차량")
+        st.markdown(f"##### 🚗 당신([{my_persona}])을 위한 추천 매칭 차량")
         render_recommended_cars(my_persona, cars_df)
 
         st.divider()
 
-        st.markdown("##### 💡 성향 맞춤 큐레이션 FAQ")
+        render_news_section(my_persona, cars_df, title=f"📰 당신([{my_persona}])의 추천 차량 관련 최신 뉴스")
+
+        st.divider()
+
+        st.markdown("##### 💬 성향 맞춤 큐레이션 FAQ")
         render_faq_list(my_persona, faq_df, cars_df, top_n=10)

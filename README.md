@@ -7,11 +7,12 @@
 ## 📌 프로젝트 개요
 
 - **주제**: 전국 자동차 등록 현황 및 기업 FAQ 조회 시스템
-- **기술 스택**: Python, Streamlit, MySQL, Pandas, Folium, BeautifulSoup, Selenium
+- **기술 스택**: Python, Streamlit, MySQL, Pandas, Folium, Plotly, BeautifulSoup, Selenium, Requests, Naver Search API
 - **팀 구성**: SKN34기 3팀 (김대호, 노민환, 이홍규, 전진영)
 - **데이터 출처**: 국토교통부 2026년 5월 자동차 등록자료 통계
-- **크롤링 대상**: 7개 브랜드 공식 FAQ + K Car 옥션 + 시드 데이터 (총 750+건)
+- **크롤링 대상**: 10개 브랜드 공식 FAQ + K Car 옥션 + 시드 데이터 (총 750+건)
 - **차량 데이터**: 16개 페르소나별 4대씩 큐레이션 (총 64대) + 위키피디아 이미지
+- **뉴스 데이터**: 네이버 뉴스 검색 API를 활용한 추천 차량/브랜드 관련 최신 자동차 뉴스
 
 ---
 
@@ -36,6 +37,13 @@
   - 4축 상세 설명
   - 비슷한 지역 Top 3 (일치 자리수 표시)
   - 맞춤형 차량 + FAQ
+
+ ### 3. 📰 추천 차량 기반 최신 자동차 뉴스
+- **네이버 뉴스 검색 API 연동**: 추천 차량 또는 브랜드명을 기반으로 최신 자동차 뉴스 조회
+- **실시간 정보 제공**: 차량 구매·선택에 참고할 수 있는 최신 시장/브랜드/모델 뉴스 제공
+- **페르소나별 검색어 자동 생성**: 추천 차량 브랜드와 모델명을 조합해 뉴스 검색
+- **안전한 API 키 관리**: `.env` 환경변수로 Client ID / Secret 관리
+- **캐싱 적용**: Streamlit 캐시를 사용해 불필요한 API 호출 최소화
 
 ---
 
@@ -69,10 +77,15 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # .env 내용 수정:
-# MYSQL_HOST=localhost
-# MYSQL_USER=root
-# MYSQL_PASSWORD=your_password
-# MYSQL_DATABASE=carbti
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=your_password
+MYSQL_DATABASE=car_bti
+
+# 네이버 뉴스 검색 API
+NAVER_CLIENT_ID=your_naver_client_id
+NAVER_CLIENT_SECRET=your_naver_client_secret
 ```
 
 ### 5단계: 데이터 처리 및 DB 적재
@@ -82,11 +95,11 @@ cp .env.example .env
 python prepare_data.py
 # → data/region_stats.csv 생성
 
-# Step 2: CSV → MySQL region_stats 테이블 적재
-python load_to_mysql.py
-
-# Step 3: persona_cars, company_faq 테이블 생성 + 시드 삽입
+# Step 2: DB 생성 + persona_cars, company_faq 테이블 생성 + 시드 삽입
 python setup_db.py
+
+# Step 3: CSV → MySQL region_stats 테이블 적재
+python load_to_mysql.py
 
 # Step 4: 브랜드 공식 FAQ 크롤링
 python crawler/crawl_brand_faq.py
@@ -95,9 +108,8 @@ python crawler/crawl_brand_faq.py
 # Step 5: K Car 옥션 FAQ 크롤링
 python crawler/crawl_faq.py
 
-# Step 6: 차량 이미지 크롤링 (위키피디아)
+# Step 6: 차량 이미지 크롤링 
 python crawler/crawl_car_images.py
-# (누락분만 수집, 59/64 성공 예상)
 
 # Step 7: DB 적재 상태 점검
 python check_db.py
@@ -121,6 +133,7 @@ SKN34-1st-3Team/
 ├── load_to_mysql.py                # CSV → MySQL region_stats 적재
 ├── setup_db.py                     # persona_cars, company_faq 테이블 생성 + 시드
 ├── db_config.py                    # MySQL 연결 헬퍼
+├── news_api.py                     # 네이버 뉴스 검색 API 호출 및 뉴스 데이터 정제
 ├── check_db.py                     # DB 적재 상태 점검
 ├── requirements.txt                # 패키지 목록
 ├── .env.example                    # 환경 변수 템플릿
@@ -186,7 +199,11 @@ SKN34-1st-3Team/
 **D. 페르소나 매칭 차량**
 - 4대 카드 (이미지 + 브랜드 + 가격 + 추천 사유)
 
-**E. 성향 맞춤 FAQ**
+**E. 추천 차량 관련 최신 뉴스**
+- 추천 차량 브랜드/모델 기반 네이버 뉴스 API 검색
+- 최신순 뉴스 제목, 요약, 발행 시각, 원문 링크 제공
+
+**F. 성향 맞춤 FAQ**
 - Top 10 (브랜드별 라운드로빈 + 점수 표시)
 
 ### Tab 2: 🧪 나의 Car-BTI 테스트
@@ -202,6 +219,7 @@ SKN34-1st-3Team/
 - 4축 분석
 - 가장 비슷한 지역 Top 3 (일치 자리수)
 - 맞춤형 차량 4대
+- 추천 차량/브랜드 관련 최신 자동차 뉴스
 - 맞춤형 FAQ Top 10
 
 ---
@@ -228,6 +246,13 @@ SKN34-1st-3Team/
 - **저장 방식**: MySQL LONGBLOB + 로컬 백업 (`db/images/`)
 - **크롤링 결과**: 64개 모두 성공
 
+### 자동차 뉴스 API
+- **출처**: 네이버 뉴스 검색 API
+- **방식**: 추천 차량 브랜드/모델명을 검색어로 조합해 최신 뉴스 조회
+- **정렬**: `sort=date` 옵션으로 최신순 조회
+- **저장 방식**: DB 저장 없이 Streamlit 실행 중 실시간 조회
+- **환경 변수**: `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`
+
 ---
 
 
@@ -238,7 +263,9 @@ SKN34-1st-3Team/
 - [BeautifulSoup 웹 크롤링](https://www.crummy.com/software/BeautifulSoup/)
 - [Selenium 자동화](https://selenium-python.readthedocs.io/)
 - [MySQL Python Connector](https://dev.mysql.com/doc/connector-python/en/)
+- [네이버 뉴스 검색 API](https://developers.naver.com/docs/serviceapi/search/news/news.md)
+- [네이버 오픈API 목록](https://developers.naver.com/docs/common/openapiguide/apilist.md)
 
 ---
 
-**Last Updated**: 2026-06-29  
+**Last Updated**: 2026-06-29 16:40  

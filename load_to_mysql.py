@@ -26,10 +26,10 @@ MYSQL_CONFIG = {
 CSV_PATH = "data/region_stats.csv"
 TABLE    = "region_stats"
 
-DDL_DROP = f"DROP TABLE IF EXISTS {TABLE};"
-
+# DROP TABLE 은 메타데이터 락/의존성 때문에 재실행 시 실패할 수 있어
+# "CREATE TABLE IF NOT EXISTS(스키마 보장) + TRUNCATE(데이터만 비움)" 방식으로 초기화한다.
 DDL_CREATE = f"""
-CREATE TABLE {TABLE} (
+CREATE TABLE IF NOT EXISTS {TABLE} (
     region        VARCHAR(10) NOT NULL PRIMARY KEY COMMENT '시도명',
     eco_count     INT          COMMENT '친환경(전기·수소·하이브리드) 등록 대수',
     eco_total     INT          COMMENT '연료기준 전체 등록 대수',
@@ -94,16 +94,16 @@ def main():
         sys.exit(1)
 
     try:
-        # with conn.cursor() as cur:
-        #     cur.execute(DDL_DROP)
-        #     cur.execute(DDL_CREATE)
-        #     print(f"✅ 테이블 재생성: {TABLE}")
+        with conn.cursor() as cur:
+            cur.execute(DDL_CREATE)
+            cur.execute(f"TRUNCATE TABLE {TABLE};")
+            print(f"✅ 테이블 초기화(CREATE IF NOT EXISTS + TRUNCATE): {TABLE}")
 
-        #     rows = df[INSERT_COLS].values.tolist()
-        #     cur.executemany(INSERT_SQL, rows)
-        #     print(f"✅ INSERT 완료: {cur.rowcount}건")
+            rows = df[INSERT_COLS].values.tolist()
+            cur.executemany(INSERT_SQL, rows)
+            print(f"✅ INSERT 완료: {cur.rowcount}건")
 
-        # conn.commit()
+        conn.commit()
 
         with conn.cursor() as cur:
             print("\n🔍 검증 1) 시도별 페르소나 코드:")

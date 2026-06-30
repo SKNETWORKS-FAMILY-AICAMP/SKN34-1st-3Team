@@ -31,11 +31,11 @@ print(f"[OK] MySQL 연결 완료 → {get_config()['database']}")
 # ──────────────────────────────────────
 # region_stats 는 prepare_data.py + load_to_mysql.py 가 소유/적재한다 (실제 등록 통계).
 # 여기서는 건드리지 않는다.
-#
-# DROP TABLE 은 메타데이터 락/의존성 때문에 재실행 시 실패할 수 있어
-# "CREATE TABLE IF NOT EXISTS(스키마 보장) + TRUNCATE(데이터만 비움)" 방식으로 초기화한다.
+cur.execute("DROP TABLE IF EXISTS persona_cars")
+cur.execute("DROP TABLE IF EXISTS company_faq")
+
 cur.execute("""
-CREATE TABLE IF NOT EXISTS persona_cars (
+CREATE TABLE persona_cars (
     car_id        INT AUTO_INCREMENT PRIMARY KEY,
     persona_code  CHAR(4) NOT NULL,
     brand         VARCHAR(40),
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS persona_cars (
 """)
 
 cur.execute("""
-CREATE TABLE IF NOT EXISTS company_faq (
+CREATE TABLE company_faq (
     faq_id        INT AUTO_INCREMENT PRIMARY KEY,
     company       VARCHAR(40),
     car_category  VARCHAR(40),
@@ -62,10 +62,7 @@ CREATE TABLE IF NOT EXISTS company_faq (
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
 """)
 
-cur.execute("TRUNCATE TABLE persona_cars")
-cur.execute("TRUNCATE TABLE company_faq")
-
-print("[OK] persona_cars / company_faq 테이블 준비 완료 (CREATE IF NOT EXISTS + TRUNCATE)")
+print("[OK] persona_cars / company_faq 테이블 생성 완료 (MySQL)")
 print("[INFO] region_stats 는 prepare_data.py → load_to_mysql.py 로 적재하세요")
 
 # ──────────────────────────────────────

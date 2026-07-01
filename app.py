@@ -35,6 +35,20 @@ from news_api import build_news_query, fetch_naver_news, has_naver_news_keys
 # ════════════════════════════════════════
 st.set_page_config(page_title="전국 Car-BTI 대시보드", page_icon="🗺️", layout="wide")
 
+# ════════════════════════════════════════
+# 전체 배경 (콘텐츠 가독성 우선)
+# ════════════════════════════════════════
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%) !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # region_stats(MySQL)의 짧은 시도명 ↔ geojson 의 정식 시도명 매핑
 REGION_FULL_MAP = {
     "서울": "서울특별시", "부산": "부산광역시", "대구": "대구광역시",
@@ -504,10 +518,38 @@ def on_region_input():
 # ════════════════════════════════════════
 # 헤더 & 탭
 # ════════════════════════════════════════
-st.title("🗺️ 전국 지역별 자동차 소비 성향 (Car-BTI) 분석")
-st.caption(
-    "지도를 클릭하거나 지역명을 입력해 4자리 Car-BTI를 확인해보세요. "
-    "두 번째 탭에서는 나만의 Car-BTI를 직접 진단할 수 있습니다."
+st.markdown(
+    """
+    <style>
+    .hero-banner {
+        background-image:
+            linear-gradient(rgba(15, 23, 42, 0.55), rgba(15, 23, 42, 0.65)),
+            url('https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=1920&q=80');
+        background-size: cover;
+        background-position: center;
+        border-radius: 14px;
+        padding: 42px 36px;
+        margin-bottom: 8px;
+    }
+    .hero-banner h1 {
+        color: #ffffff;
+        font-size: 34px;
+        font-weight: 800;
+        margin: 0 0 10px 0;
+    }
+    .hero-banner p {
+        color: #e5e7eb;
+        font-size: 15px;
+        margin: 0;
+    }
+    </style>
+    <div class="hero-banner">
+        <h1>🗺️ 전국 지역별 자동차 소비 성향 (Car-BTI) 분석</h1>
+        <p>지도를 클릭하거나 지역명을 입력해 4자리 Car-BTI를 확인해보세요.
+        두 번째 탭에서는 나만의 Car-BTI를 직접 진단할 수 있습니다.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 with st.expander("🧬 Car-BTI 가 처음이신가요? — 4가지 축 설명 보기", expanded=False):

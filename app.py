@@ -27,6 +27,7 @@ import requests
 import streamlit as st
 from streamlit_folium import st_folium
 
+from chatbot import ChatContext, render_chatbot
 from db_config import get_engine
 from news_api import build_news_query, fetch_naver_news, has_naver_news_keys
 
@@ -540,7 +541,9 @@ with st.expander("🧬 Car-BTI 가 처음이신가요? — 4가지 축 설명 �
 
 st.divider()
 
-tab1, tab2 = st.tabs(["🗺️ 지역 분석", "🧪 나의 Car-BTI 테스트"])
+tab1, tab2, tab3 = st.tabs(
+    ["🗺️ 지역 분석", "🧪 나의 Car-BTI 테스트", "💬 AI 상담 챗봇"]
+)
 
 # ════════════════════════════════════════
 # Tab 1: 지역 분석
@@ -769,3 +772,26 @@ with tab2:
 
         st.markdown("##### 💬 성향 맞춤 큐레이션 FAQ")
         render_faq_list(my_persona, faq_df, cars_df, top_n=10)
+
+
+# ════════════════════════════════════════
+# Tab 3: AI 상담 챗봇
+# ════════════════════════════════════════
+def _chatbot_news_fn(brands: list[str], models: list[str]) -> list[dict]:
+    """챗봇에서 뉴스가 필요할 때 호출되는 헬퍼 (네이버 키 없으면 빈 리스트)."""
+    if not has_naver_news_keys():
+        return []
+    query = build_news_query(brands=brands, car_models=models)
+    return load_news_articles(query, display=5)
+
+
+with tab3:
+    chat_ctx = ChatContext(
+        faq_df=faq_df,
+        cars_df=cars_df,
+        region_df=df_stats,
+        persona_meta=PERSONA_NICKNAMES,
+        recommend_fn=get_recommended_cars,
+        news_fn=_chatbot_news_fn,
+    )
+    render_chatbot(chat_ctx)

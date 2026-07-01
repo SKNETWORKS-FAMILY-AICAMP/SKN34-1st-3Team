@@ -7,7 +7,7 @@
 ## 📌 프로젝트 개요
 
 - **주제**: 전국 자동차 등록 현황 및 기업 FAQ 조회 시스템
-- **기술 스택**: Python, Streamlit, MySQL, Pandas, Folium, Plotly, BeautifulSoup, Selenium, Requests, Naver Search API
+- **기술 스택**: Python, Streamlit, MySQL, Pandas, Folium, Plotly, BeautifulSoup, Selenium, Requests, Naver Search API, Google Gemini (RAG 챗봇)
 - **팀 구성**: SKN34기 3팀 (김대호, 노민환, 이홍규, 전진영)
 - **데이터 출처**: 국토교통부 2026년 5월 자동차 등록자료 통계
 - **크롤링 대상**: 10개 브랜드 공식 FAQ + K Car 옥션 + 시드 데이터 (총 750+건)
@@ -44,6 +44,14 @@
 - **페르소나별 검색어 자동 생성**: 추천 차량 브랜드와 모델명을 조합해 뉴스 검색
 - **안전한 API 키 관리**: `.env` 환경변수로 Client ID / Secret 관리
 - **캐싱 적용**: Streamlit 캐시를 사용해 불필요한 API 호출 최소화
+
+### 4. 💬 AI 상담 챗봇 (RAG)
+- **종합 상담**: 하나의 챗 창에서 FAQ 답변 · 성향 진단 · 차량 추천 · 최신 뉴스를 모두 처리
+- **RAG 기반 답변**: `company_faq`(750+건)를 지식베이스로 삼아 근거 있는 답변 생성 (환각 최소화)
+- **의미 검색 + 폴백**: Gemini 키가 있으면 임베딩 의미 검색, 없으면 키워드 검색으로 자동 전환
+- **AI 모드 / 기본 모드**: `GEMINI_API_KEY` 설정 시 대화형 AI 답변, 미설정 시에도 FAQ 검색·추천은 정상 동작
+- **무료 티어 활용**: Google Gemini(`gemini-2.5-flash` + `gemini-embedding-001`) 무료 티어로 동작
+- **기존 로직 재활용**: 페르소나 매칭(`get_recommended_cars`)·뉴스 API를 그대로 활용
 
 ---
 
@@ -86,6 +94,11 @@ MYSQL_DATABASE=car_bti
 # 네이버 뉴스 검색 API
 NAVER_CLIENT_ID=your_naver_client_id
 NAVER_CLIENT_SECRET=your_naver_client_secret
+
+# AI 상담 챗봇 (Google Gemini, 무료) — 없어도 앱은 '기본 모드'로 동작
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_CHAT_MODEL=gemini-2.5-flash
+GEMINI_EMBED_MODEL=gemini-embedding-001
 ```
 
 ### 5단계: 데이터 처리 및 DB 적재
@@ -128,7 +141,7 @@ streamlit run app.py
 
 ```
 SKN34-1st-3Team/
-├── app.py                          # Streamlit 대시보드 (2 탭)
+├── app.py                          # Streamlit 대시보드 (3 탭)
 ├── prepare_data.py                 # XLSX → CSV (4축 비율 계산)
 ├── load_to_mysql.py                # CSV → MySQL region_stats 적재
 ├── setup_db.py                     # persona_cars, company_faq 테이블 생성 + 시드
@@ -148,6 +161,13 @@ SKN34-1st-3Team/
 │   ├── crawl_faq.py                # K Car 옥션 FAQ (Selenium)
 │   ├── faq_common.py               # 공통 유틸 (auto_tag, categorize)
 │   └── faq_fallback.py             # 크롤링 불가 브랜드 시드 (15건)
+├── chatbot/                        # 💬 AI 상담 챗봇 (RAG)
+│   ├── __init__.py                 # 패키지 진입점 (ChatContext, render_chatbot)
+│   ├── llm_client.py               # LLM/임베딩 호출 추상화 (Gemini, 폴백 지원)
+│   ├── retriever.py                # company_faq RAG 검색 (임베딩 ↔ 키워드)
+│   ├── prompts.py                  # 시스템 프롬프트
+│   ├── intents.py                  # 의도 분류 + 참고자료 조립 + 답변 생성
+│   └── ui.py                       # Streamlit 챗봇 UI
 └── db/
     └── images/                     # 로컬 이미지 백업 (gitignore)
 ```
@@ -222,6 +242,13 @@ SKN34-1st-3Team/
 - 추천 차량/브랜드 관련 최신 자동차 뉴스
 - 맞춤형 FAQ Top 10
 
+### Tab 3: 💬 AI 상담 챗봇
+
+- **대화형 상담**: FAQ 질문 · 성향 진단 · 차량 추천 · 뉴스를 하나의 챗 창에서 처리
+- **모드 배지**: 상단에 🟢 AI 모드 / 🟡 기본 모드 표시
+- **예시 질문 버튼**: 처음 진입 시 추천 질문 제공
+- **대화 초기화 버튼**: 세션 대화 기록 리셋
+
 ---
 
 ## 🌐 데이터 출처 및 크롤링
@@ -255,6 +282,42 @@ SKN34-1st-3Team/
 
 ---
 
+## 🤖 AI 상담 챗봇 (RAG) 구조
+
+### 동작 흐름
+```
+사용자 입력
+   │
+   ├─ 의도 분류(intents.classify_intent): FAQ / 진단 / 추천 / 뉴스 / 지역
+   │
+   ├─ 관련 FAQ 검색(retriever.search_faq)
+   │     ├─ Gemini 키 O → 임베딩 코사인 유사도 (의미 기반)
+   │     └─ Gemini 키 X → 키워드/문자 n-gram 겹침 (폴백)
+   │
+   ├─ [참고 자료] 조립(prompts.build_context_block)
+   │     : 관련 FAQ + (추천 시)차량 카탈로그 + (지역 시)지역 요약 + (뉴스 시)뉴스
+   │
+   └─ 답변 생성
+         ├─ AI 모드   → LLM이 근거 기반으로 자연어 답변(+출처 표기)
+         └─ 기본 모드 → 검색된 FAQ/추천 차량을 그대로 정리해 응답
+```
+
+### 두 가지 실행 모드
+| 모드 | 조건 | 동작 |
+|---|---|---|
+| 🟢 **AI 모드** | `GEMINI_API_KEY` 설정됨 | 임베딩 의미검색 + LLM 대화형 답변 |
+| 🟡 **기본 모드** | 키 없음 | 키워드 검색 + 규칙 기반 답변 (앱은 정상 동작) |
+
+> 키가 없어도 앱이 죽지 않도록 설계했습니다. 발표/데모 환경에 맞춰 키를 켜고 끌 수 있습니다.
+
+### Gemini API 키 발급 방법 (무료)
+1. <https://aistudio.google.com/app/apikey> 접속 → Google 계정 로그인
+2. **Create API key**(API 키 만들기) 클릭
+3. 생성된 키를 복사해 `.env` 의 `GEMINI_API_KEY` 에 붙여넣기
+4. 별도 결제 없이 무료 티어로 사용 가능 (`gemini-2.5-flash` + `gemini-embedding-001`)
+
+---
+
 
 ## 📚 참고 자료
 
@@ -268,4 +331,4 @@ SKN34-1st-3Team/
 
 ---
 
-**Last Updated**: 2026-06-29 16:40  
+**Last Updated**: 2026-07-01  

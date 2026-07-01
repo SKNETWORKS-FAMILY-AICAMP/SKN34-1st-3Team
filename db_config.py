@@ -1,7 +1,7 @@
 """
 db_config.py
 ============
-프로젝트 전역 MySQL 접속 설정 헬퍼.
+프로젝트 전역 MySQL 접속 설정 헬퍼
 
 우선순위
 --------
@@ -26,7 +26,7 @@ import pymysql
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()  # .env 파일이 있으면 MYSQL_* 환경변수로 로드 (팀 저장소 컨벤션)
+    load_dotenv()  # .env 사용
 except Exception:
     pass
 
@@ -42,7 +42,7 @@ DEFAULTS = {
 
 def _from_streamlit_secrets() -> dict:
     """Streamlit secrets([mysql])에서 값 읽기. 파일이 없으면 접근하지 않음
-    (없는 상태에서 st.secrets에 접근하면 'No secrets files found' 안내가 출력됨)."""
+    (없는 상태에서 st.secrets에 접근하면 'No secrets files found' 안내가 출력됨)"""
     secrets_paths = [
         os.path.join(os.path.expanduser("~"), ".streamlit", "secrets.toml"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), ".streamlit", "secrets.toml"),
@@ -51,7 +51,7 @@ def _from_streamlit_secrets() -> dict:
         return {}
 
     try:
-        import streamlit as st  # noqa: PLC0415
+        import streamlit as st  
 
         if "mysql" in st.secrets:
             section = st.secrets["mysql"]
@@ -62,7 +62,7 @@ def _from_streamlit_secrets() -> dict:
 
 
 def get_config() -> dict:
-    """현재 적용될 MySQL 접속 설정 dict 반환."""
+    """현재 적용될 MySQL 접속 설정 dict 반환"""
     cfg = dict(DEFAULTS)
     cfg.update(_from_streamlit_secrets())
 
@@ -83,7 +83,7 @@ def get_config() -> dict:
 
 
 def get_connection(use_database: bool = True):
-    """pymysql 커넥션 반환. use_database=False면 DB 미지정(최초 DB 생성용)."""
+    """pymysql 커넥션 반환. use_database=False면 DB 미지정(최초 DB 생성용)"""
     cfg = get_config()
     kwargs = dict(
         host=cfg["host"],
@@ -98,7 +98,7 @@ def get_connection(use_database: bool = True):
 
 
 def ensure_database() -> None:
-    """car_bti 데이터베이스가 없으면 생성."""
+    """car_bti 데이터베이스가 없으면 생성"""
     cfg = get_config()
     conn = get_connection(use_database=False)
     try:
@@ -122,7 +122,7 @@ def get_sqlalchemy_url(hide_password: bool = False) -> str:
 
 
 def get_engine():
-    """SQLAlchemy 엔진 반환 (pandas.read_sql 권장). 미설치 시 ImportError."""
-    from sqlalchemy import create_engine  # noqa: PLC0415
+    """SQLAlchemy 엔진 반환. 미설치 시 ImportError"""
+    from sqlalchemy import create_engine  
 
     return create_engine(get_sqlalchemy_url(), pool_recycle=3600)

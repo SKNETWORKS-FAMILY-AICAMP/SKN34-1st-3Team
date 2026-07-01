@@ -91,29 +91,23 @@ NAVER_CLIENT_SECRET=your_naver_client_secret
 ### 5단계: 데이터 처리 및 DB 적재
 
 ```bash
-# Step 1: Excel → CSV 변환 (국토부 데이터)
-python prepare_data.py
-# → data/region_stats.csv 생성
-
-# Step 2: DB 생성 + persona_cars, company_faq 테이블 생성 + 시드 삽입
+# Step 1: DB 생성 + persona_cars, company_faq 테이블 생성 + 시드 삽입
 python setup_db.py
 
-# Step 3: CSV → MySQL region_stats 테이블 적재
-python load_to_mysql.py
-
-# Step 4: 브랜드 공식 FAQ 크롤링
+# Step 2: 브랜드 공식 FAQ 크롤링
 python crawler/crawl_brand_faq.py
 # (시간 소요: 5~10분, Selenium 기반)
 
-# Step 5: K Car 옥션 FAQ 크롤링
+# Step 3: K Car 옥션 FAQ 크롤링
 python crawler/crawl_faq.py
 
-# Step 6: 차량 이미지 크롤링 
+# Step 4: 차량 이미지 크롤링 
 python crawler/crawl_car_images.py
 
-# Step 7: DB 적재 상태 점검
+# Step 5: DB 적재 상태 점검
 python check_db.py
 ```
+
 
 ### 6단계: Streamlit 실행
 ```bash
@@ -129,8 +123,6 @@ streamlit run app.py
 ```
 SKN34-1st-3Team/
 ├── app.py                          # Streamlit 대시보드 (2 탭)
-├── prepare_data.py                 # XLSX → CSV (4축 비율 계산)
-├── load_to_mysql.py                # CSV → MySQL region_stats 적재
 ├── setup_db.py                     # persona_cars, company_faq 테이블 생성 + 시드
 ├── db_config.py                    # MySQL 연결 헬퍼
 ├── news_api.py                     # 네이버 뉴스 검색 API 호출 및 뉴스 데이터 정제
@@ -140,8 +132,7 @@ SKN34-1st-3Team/
 ├── .gitignore                      # Git 제외 파일
 ├── README.md                       # (이 파일)
 ├── data/
-│   ├── 2026년_05월_자동차_등록자료_통계.xlsx  # 원본 국토부 데이터
-│   └── region_stats.csv            # 처리된 지역 통계 (17행)
+│   ├── 2026년_05월_자동차_등록자료_통계.xlsx  # 원본 국토부 데이터 (참고용)
 ├── crawler/
 │   ├── crawl_brand_faq.py          # 7개 브랜드 공식 FAQ
 │   ├── crawl_car_images.py         # 위키피디아 차량 이미지
@@ -268,4 +259,4 @@ SKN34-1st-3Team/
 
 ---
 
-**Last Updated**: 2026-06-29 16:40  
+**Last Updated**: 2026-07-01 10:20  

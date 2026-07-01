@@ -1,19 +1,20 @@
 """
 setup_db.py
 ============
-프로젝트 DB(MySQL) 초기화 스크립트 (스키마 v4 - MySQL 전환).
-
-변경 이력
----------
-v4 (MySQL 전환)
-  · SQLite → MySQL 전면 전환 (db_config.py 사용)
-  · persona_cars 에 img_data(LONGBLOB)·img_mime 컬럼 추가
-      → 크롤링한 차량 이미지 바이너리를 DB에 직접 적재
-  · "아우디" 브랜드 표기 오타(아udi) 정정
-v3
-  · Car-BTI 3번째 축: 프리미엄(P)/가성비(B) → 남(M)/여(W)
-  · persona_cars: persona_code(4자리) 기준 추천 차량 64건 (16유형 × 4대)
-  · company_faq: company 컬럼 추가 → 추천 차량 브랜드별 FAQ 연동
+persona_cars / company_faq 테이블을 생성하고 persona_cars 시드 데이터를 적재하는
+DB 초기화 스크립트
+ 
+역할
+----
+- persona_cars 테이블 생성 + 16유형 × 4대 = 64건 추천 차량 시드 데이터 삽입
+- company_faq 테이블 생성 (내용은 crawler/ 스크립트가 별도 적재)
+ 
+ 
+관련 스크립트
+-------------
+- crawler/crawl_brand_faq.py : 브랜드 공식 FAQ → company_faq
+- crawler/crawl_faq.py       : K Car 옥션 FAQ → company_faq
+- crawler/crawl_car_images.py: 위키피디아 차량 이미지 → persona_cars.img_data
 """
 
 from db_config import ensure_database, get_config, get_connection
@@ -26,11 +27,13 @@ conn = get_connection()
 cur = conn.cursor()
 print(f"[OK] MySQL 연결 완료 → {get_config()['database']}")
 
+
+
 # ──────────────────────────────────────
 # 1. 테이블 초기화 (재실행 안전)
 # ──────────────────────────────────────
-# region_stats 는 prepare_data.py + load_to_mysql.py 가 소유/적재한다 (실제 등록 통계).
-# 여기서는 건드리지 않는다.
+# region_stats 및 tbl_* 계열 테이블/뷰는 팀 공유 SQL 덤프가 소유함
+# 본 스크립트는 해당 테이블을 조회/삭제/변경하지 않음
 cur.execute("DROP TABLE IF EXISTS persona_cars")
 cur.execute("DROP TABLE IF EXISTS company_faq")
 
@@ -63,7 +66,8 @@ CREATE TABLE company_faq (
 """)
 
 print("[OK] persona_cars / company_faq 테이블 생성 완료 (MySQL)")
-print("[INFO] region_stats 는 prepare_data.py → load_to_mysql.py 로 적재하세요")
+
+
 
 # ──────────────────────────────────────
 # 2. persona_cars 초기 데이터 (16유형 × 4대 = 64건)
@@ -180,10 +184,10 @@ cur.executemany(
 )
 print(f"[OK] persona_cars: {len(persona_cars_rows)}건 주입 완료 (16유형 x 4대)")
 
-print("[INFO] company_faq 는 크롤러로만 적재합니다:")
+print("[INFO] company_faq 는 크롤러로만 적재함:")
 print("       python crawler/crawl_brand_faq.py  (브랜드 공식 FAQ)")
 print("       python crawler/crawl_faq.py      (K Car 옥션 FAQ)")
-print("[INFO] 차량 이미지는 crawler/crawl_car_images.py 실행 시 적재됩니다")
+print("[INFO] 차량 이미지는 crawler/crawl_car_images.py 실행 시 적재됨")
 
 conn.commit()
 cur.close()

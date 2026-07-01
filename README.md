@@ -219,7 +219,7 @@ SKN34-1st-3Team/
 
 ### 지역 통계 (region_stats)
 - **원본**: 국토교통부 2026년 5월 자동차 등록자료 통계
-- **처리**: `prepare_data.py` (xlsx → csv) + `load_to_mysql.py`
+- **처리**: pandas 기반으로 필요한 정보만 csv로 추출 후 MySQL DB에 적재
 - **데이터**: 17개 시도, 14개 컬럼 (eco/large/female/import 각 count/total/ratio)
 
 ### 브랜드 공식 FAQ (company_faq)

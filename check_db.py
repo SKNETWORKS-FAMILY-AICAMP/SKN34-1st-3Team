@@ -1,4 +1,15 @@
-"""DB 적재 상태 빠른 점검 스크립트.  실행:  python check_db.py"""
+"""
+check_db.py
+============
+MySQL DB 적재 상태를 빠르게 점검하는 스크립트
+
+역할
+----
+- car_bti DB 의 전체 테이블 목록과 각 테이블 row 수 출력
+- persona_cars 의 차량 이미지 적재 현황 (LONGBLOB) 점검
+- company_faq 의 기업별 FAQ 건수 집계
+- 제네시스 크롤링 FAQ 샘플 3건 미리보기
+"""
 import os
 import pymysql
 

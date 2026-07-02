@@ -1,128 +1,145 @@
-"""
-chatbot/retriever.py
-====================
-company_faq 데이터에서 사용자 질문과 관련 있는 FAQ Top-K를 찾아 반환한다. (RAG의 검색 단계)
-
-두 가지 모드
-------------
-1. 임베딩 모드 : Gemini 키가 있으면 FAQ 전체를 임베딩해 코사인 유사도로 검색 (의미 기반)
-2. 키워드 모드 : 키가 없으면 토큰/문자 n-gram 겹침 점수로 검색 (폴백)
-
-FAQ 규모(수백~수천 건)에서는 별도 벡터DB 없이 numpy 배열만으로 충분하다.
-임베딩 결과는 모듈 전역에 캐싱해 앱 실행 중 1회만 계산한다.
-"""
+"""FAQ 검색 (기본: 키워드, 선택: OpenAI 임베딩)."""
 
 from __future__ import annotations
 
+import os
 import re
+from typing import Any
 
-import numpy as np
 import pandas as pd
 
-from . import llm_client
-
-# 임베딩 캐시: {corpus_fingerprint: np.ndarray}
-_EMB_CACHE: dict[int, np.ndarray] = {}
+_EMBED_CACHE: dict[str, list[float]] = {}
 
 
-def _doc_text(row: pd.Series) -> str:
-    q = str(row.get("question", "") or "")
-    a = str(row.get("answer", "") or "")
-    return f"{q}\n{a}".strip()
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
 
 
-def _fingerprint(docs: list[str]) -> int:
-    """코퍼스가 바뀌면 캐시를 새로 만들기 위한 지문."""
-    return hash((len(docs), tuple(docs)))
-
-
-# ────────────────────────────────────────
-# 키워드(폴백) 검색
-# ────────────────────────────────────────
 def _tokenize(text: str) -> set[str]:
-    text = (text or "").lower()
-    words = re.findall(r"[0-9a-z]+|[가-힣]+", text)
-    tokens: set[str] = set()
-    for w in words:
-        tokens.add(w)
-        # 한글은 2글자 단위 부분매칭까지 추가 (조사/어미 변형 대응)
-        if len(w) >= 2 and re.match(r"[가-힣]+", w):
-            tokens.update(w[i : i + 2] for i in range(len(w) - 1))
+    text = re.sub(r"[^\w가-힣]+", " ", str(text).lower())
+    tokens = {t for t in text.split() if len(t) >= 2}
+    chars = re.findall(r"[가-힣]{2,}", str(text))
+    tokens.update(chars)
     return tokens
 
 
-def _keyword_scores(query: str, docs: list[str]) -> np.ndarray:
+def _keyword_score(query: str, question: str, answer: str, company: str = "") -> float:
     q_tokens = _tokenize(query)
     if not q_tokens:
-        return np.zeros(len(docs))
-    scores = []
-    for d in docs:
-        d_tokens = _tokenize(d)
-        inter = len(q_tokens & d_tokens)
-        scores.append(inter / (len(q_tokens) ** 0.5 + 1e-9))
-    return np.array(scores, dtype=float)
+        return 0.0
+    field_tokens = _tokenize(f"{question} {answer} {company}")
+    overlap = len(q_tokens & field_tokens)
+    if overlap == 0:
+        return 0.0
+    base = overlap / max(len(q_tokens), 1)
+    if any(t in question.lower() for t in q_tokens if len(t) >= 3):
+        base += 0.15
+    return min(base, 1.0)
 
 
-# ────────────────────────────────────────
-# 임베딩 검색
-# ────────────────────────────────────────
-def _corpus_embeddings(docs: list[str]) -> np.ndarray | None:
-    key = _fingerprint(docs)
-    if key in _EMB_CACHE:
-        return _EMB_CACHE[key]
-    try:
-        vecs = np.asarray(
-            llm_client.embed(docs, task_type="RETRIEVAL_DOCUMENT"), dtype=float
-        )
-    except Exception:
-        return None
-    _EMB_CACHE[key] = vecs
-    return vecs
-
-
-def _cosine_scores(query: str, corpus_vecs: np.ndarray) -> np.ndarray | None:
-    try:
-        q_vec = np.asarray(
-            llm_client.embed([query], task_type="RETRIEVAL_QUERY")[0], dtype=float
-        )
-    except Exception:
-        return None
-
-
-# ────────────────────────────────────────
-# 공개 API
-# ────────────────────────────────────────
-def search_faq(query: str, faq_df: pd.DataFrame, top_k: int = 4) -> list[dict]:
-    """질문과 관련 있는 FAQ Top-K를 [{company, question, answer, score}] 로 반환."""
-    if faq_df is None or faq_df.empty or not query.strip():
+def search_faq_keyword(
+    query: str,
+    faq_df: pd.DataFrame,
+    *,
+    top_k: int = 3,
+    min_score: float | None = None,
+) -> list[dict[str, Any]]:
+    if faq_df.empty or not query.strip():
         return []
 
-    docs = [_doc_text(row) for _, row in faq_df.iterrows()]
+    threshold = min_score if min_score is not None else _env_float("FAQ_MIN_KEYWORD_SCORE", 0.15)
+    rows: list[dict[str, Any]] = []
 
-    scores = None
-    if llm_client.is_available():
-        corpus_vecs = _corpus_embeddings(docs)
-        if corpus_vecs is not None:
-            scores = _cosine_scores(query, corpus_vecs)
+    for _, row in faq_df.iterrows():
+        q = str(row.get("question", ""))
+        a = str(row.get("answer", ""))
+        company = str(row.get("company", ""))
+        score = _keyword_score(query, q, a, company)
+        if score >= threshold:
+            rows.append({
+                "faq_id": row.get("faq_id"),
+                "company": company,
+                "question": q,
+                "answer": a,
+                "score": score,
+            })
 
-    if scores is None:  # 임베딩 불가 → 키워드 폴백
-        scores = _keyword_scores(query, docs)
+    rows.sort(key=lambda x: x["score"], reverse=True)
+    return rows[:top_k]
 
-    if scores is None or len(scores) == 0 or float(np.max(scores)) <= 0:
+
+def _use_embedding() -> bool:
+    return os.getenv("OPENAI_FAQ_EMBEDDING", "0").strip() in ("1", "true", "True")
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(x * x for x in b) ** 0.5
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+
+def _embed_texts(texts: list[str]) -> list[list[float]]:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    model = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")
+    to_fetch = [t for t in texts if t not in _EMBED_CACHE]
+    if to_fetch:
+        resp = client.embeddings.create(model=model, input=to_fetch)
+        for item, text in zip(resp.data, to_fetch):
+            _EMBED_CACHE[text] = item.embedding
+    return [_EMBED_CACHE[t] for t in texts]
+
+
+def search_faq(
+    query: str,
+    faq_df: pd.DataFrame,
+    *,
+    top_k: int = 3,
+    min_score: float | None = None,
+) -> list[dict[str, Any]]:
+    """FAQ 검색 진입점. 임베딩 OFF면 키워드 검색."""
+    if _use_embedding() and os.getenv("OPENAI_API_KEY"):
+        try:
+            return _search_faq_embedding(query, faq_df, top_k=top_k, min_score=min_score)
+        except Exception:
+            pass
+    return search_faq_keyword(query, faq_df, top_k=top_k, min_score=min_score)
+
+
+def _search_faq_embedding(
+    query: str,
+    faq_df: pd.DataFrame,
+    *,
+    top_k: int = 3,
+    min_score: float | None = None,
+) -> list[dict[str, Any]]:
+    if faq_df.empty:
         return []
-
-    top_idx = np.argsort(scores)[::-1][:top_k]
-    results: list[dict] = []
-    for i in top_idx:
-        if scores[i] <= 0:
-            continue
-        row = faq_df.iloc[int(i)]
-        results.append(
-            {
-                "company": str(row.get("company", "") or ""),
-                "question": str(row.get("question", "") or ""),
-                "answer": str(row.get("answer", "") or ""),
-                "score": float(scores[i]),
-            }
-        )
-    return results
+    threshold = min_score if min_score is not None else 0.35
+    texts = [
+        f"{row.get('question', '')} {row.get('answer', '')}"
+        for _, row in faq_df.iterrows()
+    ]
+    all_texts = [query] + texts
+    vectors = _embed_texts(all_texts)
+    q_vec = vectors[0]
+    rows: list[dict[str, Any]] = []
+    for (_, row), vec in zip(faq_df.iterrows(), vectors[1:]):
+        score = _cosine(q_vec, vec)
+        if score >= threshold:
+            rows.append({
+                "faq_id": row.get("faq_id"),
+                "company": str(row.get("company", "")),
+                "question": str(row.get("question", "")),
+                "answer": str(row.get("answer", "")),
+                "score": score,
+            })
+    rows.sort(key=lambda x: x["score"], reverse=True)
+    return rows[:top_k]

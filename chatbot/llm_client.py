@@ -1,25 +1,9 @@
-"""
-chatbot/llm_client.py
-=====================
-LLM(대화) + 임베딩(검색) 호출을 한 곳으로 추상화한다.
-
-- 벤더: Google Gemini (google-genai SDK)
-    · 대화  : gemini-2.5-flash (무료 티어)
-    · 임베딩 : gemini-embedding-001 (무료 티어)
-- 환경변수
-    GEMINI_API_KEY        : (필수) Google AI Studio에서 발급한 키
-                            (GOOGLE_API_KEY 로 설정해도 인식)
-    GEMINI_CHAT_MODEL     : (선택) 대화 모델, 기본 gemini-2.5-flash
-    GEMINI_EMBED_MODEL    : (선택) 임베딩 모델, 기본 text-embedding-004
-
-키/패키지가 없으면 is_available()가 False를 돌려주고,
-챗봇은 자동으로 "규칙 기반 폴백 모드"로 동작한다. (앱이 죽지 않음)
-"""
+"""OpenAI Chat API 클라이언트 (스로틀·재시도·잘림 방지 포함)."""
 
 from __future__ import annotations
 
 import os
-from functools import lru_cache
+import time
 
 try:
     from dotenv import load_dotenv
@@ -28,110 +12,118 @@ try:
 except Exception:
     pass
 
-DEFAULT_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
-DEFAULT_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
+try:
+    from openai import APIStatusError, OpenAI, RateLimitError
+except ImportError:
+    OpenAI = None  # type: ignore
+    APIStatusError = Exception  # type: ignore
+    RateLimitError = Exception  # type: ignore
+
+_last_request_at: float = 0.0
+_CONTINUE_HINT = (
+    "이전 답변이 출력 제한으로 중간에 끊겼습니다. "
+    "끊긴 부분부터 이어서 완결된 문장으로만 마무리해 주세요. 이미 쓴 내용은 반복하지 마세요."
+)
 
 
-def _api_key() -> str | None:
-    return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-
-
-def has_api_key() -> bool:
-    """GEMINI_API_KEY(또는 GOOGLE_API_KEY)가 설정되어 있는지."""
-    return bool(_api_key())
-
-
-@lru_cache(maxsize=1)
-def is_available() -> bool:
-    """LLM 호출이 가능한 환경인지 (키 + google-genai 패키지)."""
-    if not _api_key():
-        return False
+def _env_int(name: str, default: int) -> int:
     try:
-        from google import genai  # noqa: F401
-
-        return True
-    except Exception:
-        return False
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
 
 
-@lru_cache(maxsize=1)
-def _client():
-    from google import genai
-
-    return genai.Client(api_key=_api_key())
-
-
-def _to_gemini(messages: list[dict]) -> tuple[str, list[dict]]:
-    """OpenAI 스타일 messages → (system_instruction, Gemini contents).
-
-    - role 'system' → system_instruction 으로 합침
-    - role 'assistant' → 'model', 'user' → 'user'
-    """
-    system_parts: list[str] = []
-    contents: list[dict] = []
-    for m in messages:
-        role = m.get("role")
-        text = m.get("content", "") or ""
-        if role == "system":
-            if text:
-                system_parts.append(text)
-        elif role in ("user", "assistant"):
-            g_role = "model" if role == "assistant" else "user"
-            contents.append({"role": g_role, "parts": [{"text": text}]})
-
-    # Gemini는 첫 턴이 'user'여야 하므로 선행 'model' 턴(예: 환영 인사)을 제거
-    while contents and contents[0]["role"] == "model":
-        contents.pop(0)
-
-    return "\n\n".join(system_parts), contents
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
 
 
-def chat(
-    messages: list[dict],
-    model: str | None = None,
-    temperature: float = 0.3,
-    max_tokens: int = 500,
+def is_available() -> bool:
+    return bool(os.getenv("OPENAI_API_KEY")) and OpenAI is not None
+
+
+def get_model() -> str:
+    return os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+
+
+def _throttle() -> None:
+    global _last_request_at
+    interval = _env_float("OPENAI_MIN_REQUEST_INTERVAL", 2.0)
+    elapsed = time.monotonic() - _last_request_at
+    if elapsed < interval:
+        time.sleep(interval - elapsed)
+
+
+def chat_completion(
+    messages: list[dict[str, str]],
+    *,
+    max_tokens: int | None = None,
 ) -> str:
-    """대화 메시지 리스트 → 어시스턴트 답변 텍스트."""
-    from google.genai import types
+    """OpenAI chat.completions 호출. length 잘림 시 자동 이어쓰기."""
+    if not is_available():
+        raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
 
-    system_instruction, contents = _to_gemini(messages)
-    config = types.GenerateContentConfig(
-        system_instruction=system_instruction or None,
-        temperature=temperature,
-        max_output_tokens=max_tokens,
-        thinking_config=types.ThinkingConfig(thinking_budget=0),
-    )
-    resp = _client().models.generate_content(
-        model=model or DEFAULT_CHAT_MODEL,
-        contents=contents,
-        config=config,
-    )
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    model = get_model()
+    max_out = max_tokens or _env_int("OPENAI_MAX_OUTPUT_TOKENS", 2048)
+    max_retries = _env_int("OPENAI_MAX_RETRIES", 3)
+    max_continuations = _env_int("OPENAI_MAX_CONTINUATIONS", 2)
 
-    text = (resp.text or "").strip()
-    if not text:
-        candidates = getattr(resp, "candidates", None) or []
-        finish_reason = candidates[0].finish_reason if candidates else "UNKNOWN"
-        raise RuntimeError(f"empty response (finish_reason={finish_reason})")
-    return text
+    last_err: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            _throttle()
+            content = _complete_with_continuation(
+                client, model, messages, max_out, max_continuations,
+            )
+            global _last_request_at
+            _last_request_at = time.monotonic()
+            return content
+        except RateLimitError as exc:
+            last_err = exc
+            time.sleep(2 ** attempt)
+        except APIStatusError as exc:
+            if exc.status_code == 429:
+                last_err = exc
+                time.sleep(2 ** attempt)
+                continue
+            raise
+        except Exception as exc:
+            last_err = exc
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+
+    raise RuntimeError(f"OpenAI API 호출 실패: {last_err}")
 
 
-def embed(
-    texts: list[str],
-    model: str | None = None,
-    task_type: str = "RETRIEVAL_DOCUMENT",
-) -> list[list[float]]:
-    """텍스트 리스트 → 임베딩 벡터 리스트. (대량은 배치로 나눠 호출)"""
-    from google.genai import types
-    model = model or DEFAULT_EMBED_MODEL
-    vectors: list[list[float]] = []
-    batch_size = 100  # Gemini 임베딩 배치 상한 대비 보수적으로 설정
-    for start in range(0, len(texts), batch_size):
-        chunk = texts[start : start + batch_size]
-        resp = _client().models.embed_content(
+def _complete_with_continuation(
+    client: OpenAI,
+    model: str,
+    messages: list[dict[str, str]],
+    max_tokens: int,
+    max_continuations: int,
+) -> str:
+    """finish_reason=length 이면 이어쓰기로 문장 잘림 방지."""
+    parts: list[str] = []
+    current = list(messages)
+
+    for _ in range(max_continuations + 1):
+        resp = client.chat.completions.create(
             model=model,
-            contents=chunk,
-            config=types.EmbedContentConfig(task_type=task_type),
+            messages=current,  # type: ignore[arg-type]
+            max_tokens=max_tokens,
+            temperature=0.4,
         )
-        vectors.extend(list(e.values) for e in resp.embeddings)
-    return vectors
+        chunk = (resp.choices[0].message.content or "").strip()
+        if chunk:
+            parts.append(chunk)
+        if resp.choices[0].finish_reason != "length":
+            break
+        current = current + [
+            {"role": "assistant", "content": chunk},
+            {"role": "user", "content": _CONTINUE_HINT},
+        ]
+
+    return "\n".join(parts).strip()

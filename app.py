@@ -146,6 +146,41 @@ VIZ_MODE_TO_COUNT = {
     "🌍 수입차 비중":     ("import_count", "import_ratio", "수입차",     "#3b82f6"),
 }
 
+def _mime_from_image_bytes(data: bytes) -> tuple[str, str]:
+    """이미지 바이너리 시그니처로 MIME 타입·확장자 추론."""
+    if data.startswith(b"\x89PNG"):
+        return "image/png", ".png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg", ".jpg"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp", ".webp"
+    return "application/octet-stream", ".bin"
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_persona_character_image(persona: str) -> tuple[bytes, str, str] | None:
+    """tbl_persona_detail.persona_img(LONGBLOB)에서 페르소나 이미지 로드."""
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            df = pd.read_sql(
+                "SELECT persona_img FROM tbl_persona_detail "
+                "WHERE persona_code = %(code)s",
+                conn,
+                params={"code": persona},
+            )
+        if df.empty:
+            return None
+        blob = df.iloc[0]["persona_img"]
+        if blob is None or (isinstance(blob, float) and pd.isna(blob)):
+            return None
+        data = bytes(blob)
+        if len(data) < 500:
+            return None
+        mime, ext = _mime_from_image_bytes(data)
+        return data, mime, f"car_bti_{persona}{ext}"
+    except Exception:
+        return None
 
 # ════════════════════════════════════════
 # 데이터 로딩
@@ -410,6 +445,103 @@ def make_trend_chart(
         showlegend=False,
     )
     return fig
+
+def render_my_car_bti_result(persona: str, color: str):
+    """왼쪽: Car-BTI 결과 / 오른쪽: 이미지+다운로드."""
+    nickname, summary = PERSONA_NICKNAMES.get(persona, ("", ""))
+    col_result, col_image = st.columns(2, gap="large")
+    # ── 왼쪽: 결과 ──
+    with col_result:
+        st.markdown(
+            f"<div style='padding:24px;background:{color}33;"
+            f"border-left:8px solid {color};border-radius:8px;margin-bottom:14px'>"
+            f"<div style='font-size:16px;color:#666'>🎯 당신의 Car-BTI는</div>"
+            f"<div style='font-size:40px;font-weight:bold;letter-spacing:6px'>[ {persona} ]</div>"
+            f"<div style='font-size:20px;font-weight:600;color:#222;margin-top:10px'>{nickname}</div>"
+            f"<div style='font-size:14px;color:#444;line-height:1.6;margin-top:6px'>{summary}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("##### 📖 당신의 4축 분석")
+        st.markdown(persona_desc_html(persona), unsafe_allow_html=True)
+    # ── 오른쪽: 이미지 + 다운로드 ──
+    with col_image:
+        st.markdown("##### 🖼️ 나의 Car-BTI 페르소나 카드")
+        persona_img = load_persona_character_image(persona)
+        if persona_img:
+            img_bytes, img_mime, img_filename = persona_img
+            st.image(io.BytesIO(img_bytes), use_column_width=True)
+            st.download_button(
+                label="⬇️ 페르소나 이미지 다운로드",
+                data=img_bytes,
+                file_name=img_filename,
+                mime=img_mime,
+                key=f"download_persona_{persona}",
+                use_container_width=True,
+            )
+        else:
+            st.info(
+                f"`tbl_persona_detail.persona_img`에 [{persona}] 이미지가 없습니다. "
+                "`python load_persona_images.py`를 실행하세요."
+            )
+
+
+def render_recommended_cars(persona: str, cars: pd.DataFrame):
+    """단일 차량 프로필 카드 UI."""
+    if cars.empty:
+        st.warning("⚠️ 차량 DB(persona_cars)가 비어있습니다. 크롤러 스크립트를 먼저 실행해주세요.")
+        return
+
+    rec = get_recommended_cars(persona, cars)
+    if rec.empty:
+        st.warning(f"⚠️ [{persona}] 유형에 매칭된 차량이 없습니다.")
+        return
+
+    st.caption(
+        f"**{persona}** = "
+        + " · ".join(f"{AXIS_LABELS[c][0]} {AXIS_LABELS[c][1]}" for c in persona)
+        + " 에 완벽하게 매칭된 대표 차량"
+    )
+
+    for i, (_, car) in enumerate(rec.iterrows()):
+        with st.container(border=True):
+            col1, col2 = st.columns([1, 2], gap="large")
+            
+            with col1:
+                img_bytes = None
+                car_id = car.get("car_id")
+                if pd.notna(car_id):
+                    img_bytes = load_car_image(int(car_id))
+
+                img_path = car.get("img_url")
+                if img_bytes:
+                    st.image(io.BytesIO(img_bytes), use_column_width=True)
+                elif img_path and isinstance(img_path, str) and os.path.exists(img_path):
+                    st.image(img_path, use_column_width=True)
+                else:
+                    st.markdown(
+                        "<div style='height:200px;background:#f0f4f8;border-radius:8px;"
+                        "display:flex;align-items:center;justify-content:center;color:#64748b;"
+                        "font-size:13px;text-align:center;padding:12px'>"
+                        "🚗<br/><span style=\"font-size:11px\">이미지를 불러올 수 없습니다.</span>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+            
+            with col2:
+                st.subheader(f"{car['brand']} {car['car_model']}")
+                
+                # 구 스키마 컬럼 예외 처리
+                price = car.get("price")
+                if pd.notna(price) and price:
+                    st.caption(f"💸 예상 가격: {price}")
+                    
+                reason = car.get("reason")
+                if pd.notna(reason) and reason:
+                    st.write(reason)
+                    
+                st.markdown(f"✨ **사용자의 [{persona}] 성향에 기반하여 1:1로 큐레이팅된 모델입니다.**")
+                st.markdown("차량과 관련된 세부적인 정보나 유지 관리 팁은 하단의 FAQ를 확인해 보세요.")
 
 def render_recommended_cars(persona: str, cars: pd.DataFrame):
     """단일 차량 프로필 카드 UI."""
@@ -751,7 +883,7 @@ with tab1:
                 if rrow["region_full"].startswith(clicked[:2]) or clicked.startswith(rrow["region"][:2]):
                     st.session_state.selected_region = rrow["region"]
                     break
-                
+
         # ── 선택 지역 확정 (지도 클릭 반영 후) ──
         selected = st.session_state.selected_region
         if selected not in df_stats["region"].values:
@@ -903,22 +1035,10 @@ with tab2:
 
         st.divider()
 
-        my_nickname, my_summary = PERSONA_NICKNAMES.get(my_persona, ("", ""))
-        st.markdown(
-            f"<div style='padding:24px;background:{my_color}33;"
-            f"border-left:8px solid {my_color};border-radius:8px;margin-bottom:14px'>"
-            f"<div style='font-size:16px;color:#666'>🎯 당신의 Car-BTI는</div>"
-            f"<div style='font-size:40px;font-weight:bold;letter-spacing:6px'>[ {my_persona} ]</div>"
-            f"<div style='font-size:20px;font-weight:600;color:#222;margin-top:10px'>{my_nickname}</div>"
-            f"<div style='font-size:14px;color:#444;line-height:1.6;margin-top:6px'>{my_summary}</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
-        st.markdown("##### 📖 당신의 4축 분석")
-        st.markdown(persona_desc_html(my_persona), unsafe_allow_html=True)
+        render_my_car_bti_result(my_persona, my_color)
 
         st.divider()
+        
 
         st.markdown("##### 🗺️ 당신과 가장 비슷한 지역 Top 3")
         stats = df_stats.copy()

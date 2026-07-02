@@ -1,14 +1,14 @@
 """
-prepare_data.py
+region_ETL.py
 ================
 국토부 자동차 등록 통계 xlsx → Car-BTI 4축 시도별 데이터 추출
 
 산출물
 ------
-  data/region_stats.csv : 시도별 4축 비율 + persona_code(4글자)
+  ETL_data/region_stats.csv : 시도별 4축 비율 + persona_code(4글자)
   콘솔                  : 결과 표 + 페르소나 분포
 
-4축 정의 (지도 시각화가 한쪽으로 쏠리지 않도록 8:9 정도로 갈리게 설정)
+4축 정의 (rank 기준으로 8 : 9 분할)
 """
 
 import os
@@ -18,17 +18,11 @@ import pandas as pd
 # 경로 / 임계값 / 상수
 # ──────────────────────────────────────────────
 XLSX_PATH  = "data/2026년_05월_자동차_등록자료_통계.xlsx"
-OUTPUT_CSV = "preprocessed_data/region_stats.csv"
+OUTPUT_CSV = "ETL_data/region_stats.csv"
 
 REGIONS = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
            "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"]
 
-THRESHOLDS = {
-    "eco_ratio":    14.1,   # E if >= (8곳), else G (9곳) - 
-    "large_ratio":  29.5,   # L if >= (8곳), else S (9곳) -  
-    "female_ratio": 27.5,   # F if >= (9곳), else M (8곳) - 
-    "import_ratio": 12.0,   # I if >= (8곳), else D (9곳) - 
-}
 
 # 친환경 연료 분류
 GREEN_FUELS = [
@@ -105,17 +99,6 @@ def extract_import(xlsx: str):
 
 
 # ──────────────────────────────────────────────
-# 페르소나 코드 생성
-# ──────────────────────────────────────────────
-def make_persona(row) -> str:
-    code  = "E" if row["eco_ratio"]    >= THRESHOLDS["eco_ratio"]    else "G"
-    code += "L" if row["large_ratio"]  >= THRESHOLDS["large_ratio"]  else "S"
-    code += "F" if row["female_ratio"] >= THRESHOLDS["female_ratio"] else "M"
-    code += "I" if row["import_ratio"] >= THRESHOLDS["import_ratio"] else "D"
-    return code
-
-
-# ──────────────────────────────────────────────
 # 메인
 # ──────────────────────────────────────────────
 def main():
@@ -148,7 +131,25 @@ def main():
         "import_total": total_all.values,
         "import_ratio": (imp / total_all * 100).round(2).values,
     })
-    df["persona_code"] = df.apply(make_persona, axis=1)
+
+    # ──────────────────────────────────────────────
+    # Rank 기반 페르소나 코드 생성 (17개 지역 대상)
+    # ──────────────────────────────────────────────
+    # 내림차순으로 순위를 매겨 1등부터 17등까지 부여
+    # method="first"로 값이 같으면 데이터 상 먼저 나온 지역에 앞 순위를 줌
+    eco_rank = df["eco_ratio"].rank(ascending=False, method="first")
+    large_rank = df["large_ratio"].rank(ascending=False, method="first")
+    female_rank = df["female_ratio"].rank(ascending=False, method="first")
+    import_rank = df["import_ratio"].rank(ascending=False, method="first")
+    
+
+    # 분할 비율(8:9)에 맞춰 순위 커트라인 적용
+    df["persona_code"] = (
+        eco_rank.apply(lambda r: "E" if r <= 8 else "G")
+        + large_rank.apply(lambda r: "L" if r <= 8 else "S")
+        + female_rank.apply(lambda r: "F" if r <= 8 else "M")  
+        + import_rank.apply(lambda r: "I" if r <= 8 else "D")
+    )
 
     os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
     df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8-sig")

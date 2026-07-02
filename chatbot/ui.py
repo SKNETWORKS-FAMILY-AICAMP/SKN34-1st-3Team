@@ -6,12 +6,16 @@ Streamlit 챗봇 UI. app.py의 세 번째 탭에서 render_chatbot(ctx)를 호�
 
 from __future__ import annotations
 
+import time
+
 import streamlit as st
 
 from . import llm_client
 from .intents import ChatContext, answer
 
 _SESSION_KEY = "chatbot_messages"
+_LAST_SEND_KEY = "chatbot_last_send_at"
+_COOLDOWN_SEC = 3.0  # 연속 질문 시 Gemini RPM 완화
 
 WELCOME = (
     "안녕하세요! 🚗 **Car-BTI AI 상담 도우미**예요.\n\n"
@@ -36,12 +40,21 @@ def _ensure_state() -> None:
         ]
 
 
-def _send(prompt: str, ctx: ChatContext) -> None:
+def _send(prompt: str, ctx: ChatContext) -> str | None:
+    """답변 생성. 쿨다운 중이면 안내 문구를 반환."""
+    now = time.monotonic()
+    last = st.session_state.get(_LAST_SEND_KEY, 0.0)
+    if now - last < _COOLDOWN_SEC:
+        wait = int(_COOLDOWN_SEC - (now - last)) + 1
+        return f"⏳ 잠시만요! {wait}초 후에 다시 질문해 주세요. (API 요청 한도 보호)"
+
     history = st.session_state[_SESSION_KEY]
     history.append({"role": "user", "content": prompt})
     with st.spinner("답변을 준비하고 있어요..."):
         reply = answer(prompt, history, ctx)
     history.append({"role": "assistant", "content": reply})
+    st.session_state[_LAST_SEND_KEY] = time.monotonic()
+    return None
 
 
 def render_chatbot(ctx: ChatContext) -> None:
@@ -76,10 +89,12 @@ def render_chatbot(ctx: ChatContext) -> None:
         for i, s in enumerate(SUGGESTIONS):
             with cols[i]:
                 if st.button(s, key=f"sugg_{i}", use_container_width=True):
-                    _send(s, ctx)
+                    if msg := _send(s, ctx):
+                        st.warning(msg)
                     st.rerun()
 
     # 입력창
     if prompt := st.chat_input("무엇이든 물어보세요 (FAQ · 진단 · 추천 · 뉴스)"):
-        _send(prompt, ctx)
+        if msg := _send(prompt, ctx):
+            st.warning(msg)
         st.rerun()

@@ -3,26 +3,33 @@ chatbot/retriever.py
 ====================
 company_faq 데이터에서 사용자 질문과 관련 있는 FAQ Top-K를 찾아 반환한다. (RAG의 검색 단계)
 
-두 가지 모드
-------------
-1. 임베딩 모드 : Gemini 키가 있으면 FAQ 전체를 임베딩해 코사인 유사도로 검색 (의미 기반)
-2. 키워드 모드 : 키가 없으면 토큰/문자 n-gram 겹침 점수로 검색 (폴백)
-
-FAQ 규모(수백~수천 건)에서는 별도 벡터DB 없이 numpy 배열만으로 충분하다.
-임베딩 결과는 모듈 전역에 캐싱해 앱 실행 중 1회만 계산한다.
+검색 모드
+---------
+1. 키워드 모드 (기본) : API 호출 없음 — 무료 티어 429 방지
+2. 임베딩 모드        : GEMINI_FAQ_EMBEDDING=1 일 때만 (의미 기반, 코퍼스 디스크 캐시)
 """
 
 from __future__ import annotations
 
+import hashlib
+import os
+import pickle
 import re
+from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from . import llm_client
 
-# 임베딩 캐시: {corpus_fingerprint: np.ndarray}
-_EMB_CACHE: dict[int, np.ndarray] = {}
+_EMB_CACHE: dict[str, np.ndarray] = {}
+_CACHE_DIR = Path(__file__).resolve().parent.parent / ".cache"
+_CACHE_FILE = _CACHE_DIR / "faq_embeddings.pkl"
+
+# FAQ 검색 최소 점수 (이하이면 '관련 없음' 처리)
+DEFAULT_MIN_KEYWORD_SCORE = float(os.getenv("FAQ_MIN_KEYWORD_SCORE", "0.9"))
+DEFAULT_MIN_EMBED_SCORE = float(os.getenv("FAQ_MIN_EMBED_SCORE", "0.55"))
 
 
 def _doc_text(row: pd.Series) -> str:
@@ -31,13 +38,18 @@ def _doc_text(row: pd.Series) -> str:
     return f"{q}\n{a}".strip()
 
 
-def _fingerprint(docs: list[str]) -> int:
-    """코퍼스가 바뀌면 캐시를 새로 만들기 위한 지문."""
-    return hash((len(docs), tuple(docs)))
+def _stable_fingerprint(docs: list[str]) -> str:
+    """프로세스 간 동일한 코퍼스 지문 (디스크 캐시용)."""
+    h = hashlib.sha256()
+    h.update(str(len(docs)).encode())
+    for d in docs:
+        h.update(d.encode("utf-8", errors="ignore"))
+        h.update(b"\0")
+    return h.hexdigest()
 
 
 # ────────────────────────────────────────
-# 키워드(폴백) 검색
+# 키워드(기본) 검색
 # ────────────────────────────────────────
 def _tokenize(text: str) -> set[str]:
     text = (text or "").lower()
@@ -45,7 +57,6 @@ def _tokenize(text: str) -> set[str]:
     tokens: set[str] = set()
     for w in words:
         tokens.add(w)
-        # 한글은 2글자 단위 부분매칭까지 추가 (조사/어미 변형 대응)
         if len(w) >= 2 and re.match(r"[가-힣]+", w):
             tokens.update(w[i : i + 2] for i in range(len(w) - 1))
     return tokens
@@ -64,25 +75,65 @@ def _keyword_scores(query: str, docs: list[str]) -> np.ndarray:
 
 
 # ────────────────────────────────────────
-# 임베딩 검색
+# 임베딩 검색 (선택)
 # ────────────────────────────────────────
+def _load_disk_cache(key: str) -> np.ndarray | None:
+    if not _CACHE_FILE.exists():
+        return None
+    try:
+        with _CACHE_FILE.open("rb") as f:
+            data = pickle.load(f)
+        if data.get("key") == key:
+            return np.asarray(data["vecs"], dtype=float)
+    except Exception:
+        return None
+    return None
+
+
+def _save_disk_cache(key: str, vecs: np.ndarray) -> None:
+    try:
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with _CACHE_FILE.open("wb") as f:
+            pickle.dump({"key": key, "vecs": vecs}, f)
+    except Exception:
+        pass
+
+
 def _corpus_embeddings(docs: list[str]) -> np.ndarray | None:
-    key = _fingerprint(docs)
+    key = _stable_fingerprint(docs)
     if key in _EMB_CACHE:
         return _EMB_CACHE[key]
+
+    disk = _load_disk_cache(key)
+    if disk is not None:
+        _EMB_CACHE[key] = disk
+        return disk
+
     try:
         vecs = np.asarray(llm_client.embed(docs), dtype=float)
     except Exception:
         return None
+
     _EMB_CACHE[key] = vecs
+    _save_disk_cache(key, vecs)
     return vecs
 
 
-def _cosine_scores(query: str, corpus_vecs: np.ndarray) -> np.ndarray | None:
+@lru_cache(maxsize=128)
+def _query_embedding(query: str) -> tuple[float, ...] | None:
+    """질문 임베딩 캐시 (동일 질문 재호출 방지)."""
     try:
-        q_vec = np.asarray(llm_client.embed([query])[0], dtype=float)
+        vec = llm_client.embed([query])[0]
+        return tuple(vec)
     except Exception:
         return None
+
+
+def _cosine_scores(query: str, corpus_vecs: np.ndarray) -> np.ndarray | None:
+    q_tuple = _query_embedding(query)
+    if q_tuple is None:
+        return None
+    q_vec = np.asarray(q_tuple, dtype=float)
     corpus_norm = np.linalg.norm(corpus_vecs, axis=1)
     q_norm = np.linalg.norm(q_vec)
     denom = corpus_norm * q_norm
@@ -93,7 +144,7 @@ def _cosine_scores(query: str, corpus_vecs: np.ndarray) -> np.ndarray | None:
 # ────────────────────────────────────────
 # 공개 API
 # ────────────────────────────────────────
-def search_faq(query: str, faq_df: pd.DataFrame, top_k: int = 4) -> list[dict]:
+def search_faq(query: str, faq_df: pd.DataFrame, top_k: int = 3) -> list[dict]:
     """질문과 관련 있는 FAQ Top-K를 [{company, question, answer, score}] 로 반환."""
     if faq_df is None or faq_df.empty or not query.strip():
         return []
@@ -101,21 +152,25 @@ def search_faq(query: str, faq_df: pd.DataFrame, top_k: int = 4) -> list[dict]:
     docs = [_doc_text(row) for _, row in faq_df.iterrows()]
 
     scores = None
-    if llm_client.is_available():
+    used_embedding = False
+    if llm_client.is_available() and llm_client.faq_embedding_enabled():
         corpus_vecs = _corpus_embeddings(docs)
         if corpus_vecs is not None:
             scores = _cosine_scores(query, corpus_vecs)
+            used_embedding = scores is not None
 
-    if scores is None:  # 임베딩 불가 → 키워드 폴백
+    if scores is None:
         scores = _keyword_scores(query, docs)
 
     if scores is None or len(scores) == 0 or float(np.max(scores)) <= 0:
         return []
 
+    min_score = DEFAULT_MIN_EMBED_SCORE if used_embedding else DEFAULT_MIN_KEYWORD_SCORE
+
     top_idx = np.argsort(scores)[::-1][:top_k]
     results: list[dict] = []
     for i in top_idx:
-        if scores[i] <= 0:
+        if scores[i] < min_score:
             continue
         row = faq_df.iloc[int(i)]
         results.append(

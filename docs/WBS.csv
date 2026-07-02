@@ -28,9 +28,9 @@
 개발-STREAMLIT 구현,성향 맞춤 FAQ 구현,브랜드별 라운드로빈 FAQ,완료
 개발-STREAMLIT 구현,추천 차량 뉴스 섹션 구현,네이버 뉴스 연동 표시,완료
 개발-STREAMLIT 구현,나의 Car-BTI 테스트 Page 구현,4문항 진단→결과 분석,완료
-개발-AI 상담 챗봇,Gemini LLM/임베딩 연동,llm_client.py(폴백 포함),완료
-개발-AI 상담 챗봇,FAQ RAG 검색 구현,retriever.py 의미/키워드 검색,완료
-개발-AI 상담 챗봇,의도 분류·답변 생성,intents.py 오케스트레이션,완료
-개발-AI 상담 챗봇,AI 챗봇 Page 구현,ui.py 대화형 상담 탭,완료
+개발-AI 상담 챗봇,Gemini LLM/임베딩 연동,llm_client.py(폴백 포함),재구축 예정
+개발-AI 상담 챗봇,FAQ RAG 검색 구현,retriever.py 의미/키워드 검색,재구축 예정
+개발-AI 상담 챗봇,의도 분류·답변 생성,intents.py 오케스트레이션,재구축 예정
+개발-AI 상담 챗봇,AI 챗봇 Page 구현,ui.py 대화형 상담 탭,재구축 예정
 테스트 및 마무리,DB 적재 점검,check_db.py 상태 점검,완료
 테스트 및 마무리,README/문서화,실행법·구조·설정 가이드,완료

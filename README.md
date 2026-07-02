@@ -1,6 +1,6 @@
 # 🚗 Car-BTI: 전국 자동차 소비 성향 분석 대시보드
 
-**MBTI 스타일 4축 16유형으로 전국 17개 시도의 자동차 등록 현황을 시각화하고, 맞춤형 차량 추천·FAQ·AI 상담을 제공하는 Streamlit 대시보드**
+**MBTI 스타일 4축 16유형으로 전국 17개 시도의 자동차 등록 현황을 시각화하고, 맞춤형 차량 추천·FAQ를 제공하는 Streamlit 대시보드**
 
 ---
 
@@ -9,7 +9,7 @@
 | 항목 | 내용 |
 |------|------|
 | **주제** | 전국 자동차 등록 현황 분석 및 기업 FAQ·맞춤 추천 시스템 |
-| **목표** | 지역별 Car-BTI(4축 16유형) 시각화 + 사용자 성향 기반 차량·FAQ·뉴스·AI 상담 제공 |
+| **목표** | 지역별 Car-BTI(4축 16유형) 시각화 + 사용자 성향 기반 차량·FAQ·뉴스 제공 |
 | **데이터 출처** | 국토교통부 2026년 5월 자동차 등록자료 통계, 브랜드 공식 FAQ, K Car 옥션, 위키피디아 |
 | **규모** | 지역 17개 시도 · 추천 차량 64대 · FAQ 750+건 |
 
@@ -20,7 +20,6 @@
 - 전국 시·도별 **자동차 등록 패턴**(친환경·차종·성별·수입/국산)을 한눈에 비교할 도구가 필요함
 - 단순 통계 표를 넘어 **MBTI형 4자리 코드(Car-BTI)** 로 지역·사용자 성향을 직관적으로 표현
 - 차량 구매·유지와 관련된 **브랜드 FAQ**를 크롤링·태깅해 페르소나별로 큐레이션
-- **RAG 기반 AI 챗봇**으로 FAQ·차량·지역 데이터를 근거로 한 상담 기능 제공
 
 ---
 
@@ -35,10 +34,10 @@
 - 4문항 설문 → 4자리 Car-BTI 산출
 - 유사 지역 Top 3 · 추천 차량 · FAQ · 뉴스
 
-### Tab 3 · 💬 AI 상담 챗봇 (RAG)
-- FAQ 답변 · 성향 진단 · 차량 추천 · 뉴스를 하나의 챗 창에서 처리
-- Google Gemini + `company_faq` 근거 기반 답변 (환각 최소화)
-- API 키 미설정 시에도 키워드 검색·추천 **기본 모드** 동작
+### Tab 3 · 💬 AI 상담
+- OpenAI 기반 RAG 챗봇 (FAQ·차량·지역·뉴스·Car-BTI 진단)
+- DB·네이버 뉴스 API 근거 답변, 범위 밖 질문 자동 거절
+- API 키 없을 때 기본 모드(FAQ·차량·뉴스 규칙 기반 안내)
 
 ### 공통
 - 네이버 뉴스 API로 추천 브랜드/모델 관련 **실시간 뉴스** 조회 (Streamlit 캐시)
@@ -53,8 +52,8 @@
 | **Backend** | Python, Pandas |
 | **Database** | MySQL, PyMySQL, SQLAlchemy |
 | **크롤링** | BeautifulSoup4, Selenium, requests |
-| **외부 API** | 네이버 뉴스 검색 API, Google Gemini API |
-| **AI** | RAG (임베딩 검색 + LLM), google-genai |
+| **외부 API** | 네이버 뉴스 검색 API, OpenAI Chat API |
+| **AI 챗봇** | `chatbot/` (RAG, 의도 분류, scope 판별) |
 
 ---
 
@@ -69,12 +68,12 @@ flowchart TB
     subgraph App["🖥️ Streamlit 대시보드 (app.py)"]
         Tab1["Tab1 · 지역 분석"]
         Tab2["Tab2 · Car-BTI 테스트"]
-        Tab3["Tab3 · AI 상담 챗봇"]
+        Tab3["Tab3 · AI 상담"]
     end
 
     subgraph Python["🐍 Python 백엔드"]
         AppCore["app.py<br/>지도·차트·추천·FAQ UI"]
-        Chatbot["chatbot/<br/>RAG · 의도분류 · Gemini"]
+        Chatbot["chatbot/<br/>RAG·의도·scope"]
         NewsAPI["news_api.py<br/>뉴스 검색·정제"]
         DBConfig["db_config.py<br/>MySQL 연결"]
     end
@@ -100,7 +99,7 @@ flowchart TB
         KCar["K Car 옥션 FAQ"]
         Wiki["위키피디아<br/>차량 이미지"]
         Naver["네이버 뉴스 API"]
-        Gemini["Google Gemini API"]
+        OpenAI["OpenAI API"]
         GeoJSON["GeoJSON<br/>(시도 경계)"]
     end
 
@@ -110,7 +109,8 @@ flowchart TB
 
     AppCore --> DBConfig
     Chatbot --> DBConfig
-    Chatbot --> Gemini
+    Chatbot --> NewsAPI
+    Chatbot --> OpenAI
     AppCore --> NewsAPI
     NewsAPI --> Naver
     AppCore --> GeoJSON
@@ -176,24 +176,13 @@ flowchart TD
 
     Tabs --> T1["🗺️ 지역 분석"]
     Tabs --> T2["🧪 Car-BTI 테스트"]
-    Tabs --> T3["💬 AI 상담 챗봇"]
+    Tabs --> T3["💬 AI 상담"]
 
     T1 --> T1D["지도·레이더·차량·FAQ·뉴스"]
     T2 --> T2C["4문항 진단 → 결과·추천"]
-    T3 --> T3D["RAG 검색 → Gemini 답변"]
+    T3 --> T3D["RAG 챗봇 답변"]
 
     T1D & T2C & T3D --> End(["화면 출력"])
-```
-
-### 6-3. AI 챗봇 RAG 흐름
-
-```mermaid
-flowchart TD
-    Q["사용자 질문"] --> Intent["의도 분류<br/>FAQ/진단/추천/뉴스"]
-    Intent --> Search["FAQ 유사도 검색<br/>retriever.py"]
-    Search --> Context["참고자료 조립<br/>FAQ + 차량 + 지역"]
-    Context --> LLM["Gemini 답변<br/>gemini-2.5-flash"]
-    LLM --> Answer["채팅 UI 출력"]
 ```
 
 ---
@@ -254,14 +243,13 @@ erDiagram
 |----|-----------|
 | **지역 분석** | 지도 5모드 · 페르소나 박스 · 레이더 차트 · 4축 설명 · 통계 progress bar · 추천 차량 4대 · FAQ · 뉴스 |
 | **Car-BTI 테스트** | 4문항 radio · 결과 박스 · 유사 지역 Top 3 · 추천 차량 · FAQ · 뉴스 |
-| **AI 상담 챗봇** | 채팅 UI · 예시 질문 · AI/기본 모드 배지 · 대화 초기화 |
 
 ---
 
 ## 11. 프로젝트 구조
 
 ```
-├── app.py                    # Streamlit 메인 (3탭)
+├── app.py                    # Streamlit 메인 (2탭)
 ├── prepare_data.py           # XLSX → CSV
 ├── load_to_mysql.py          # CSV → region_stats
 ├── setup_db.py               # 테이블·시드 생성
@@ -269,7 +257,6 @@ erDiagram
 ├── news_api.py               # 네이버 뉴스 API
 ├── check_db.py               # DB 점검
 ├── crawler/                  # FAQ·이미지 크롤러
-├── chatbot/                  # AI RAG 챗봇
 ├── data/                     # 원본 XLSX · CSV
 ├── docs/                     # WBS · 요구사항정의서 · 아키텍처
 └── db/images/                # 이미지 로컬 백업
@@ -287,6 +274,7 @@ pip install -r requirements.txt
 
 # 2. 환경 변수 (.env.example 참고)
 cp .env.example .env
+# OPENAI_API_KEY, NAVER_CLIENT_ID/SECRET, MYSQL_* 설정
 
 # 3. 데이터 적재
 python prepare_data.py
@@ -314,7 +302,6 @@ streamlit run app.py
 | K Car 옥션 FAQ | kcarauction.com | Selenium (6탭) |
 | 차량 이미지 | 위키피디아 | requests + BeautifulSoup |
 | 뉴스 | 네이버 뉴스 검색 API | 실시간 조회 (DB 미저장) |
-| AI | Google Gemini | RAG 답변 생성 |
 
 크롤링 불가 브랜드(벤츠·테슬라 등)는 `faq_fallback.py` 시드 FAQ로 대체합니다.
 
@@ -327,7 +314,6 @@ streamlit run app.py
 - [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/)
 - [Selenium](https://selenium-python.readthedocs.io/)
 - [네이버 뉴스 검색 API](https://developers.naver.com/docs/serviceapi/search/news/news.md)
-- [Google AI Studio (Gemini API)](https://aistudio.google.com/app/apikey)
 
 ### 관련 문서 (`docs/`)
 

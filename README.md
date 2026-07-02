@@ -7,12 +7,12 @@
 
 **SKN34기 3팀**
 
-| 역할 | 이름 | GitHub |
-|------|------|--------|
-| 팀장 | 노민환 | |
-| 팀원 | 김대호 | |
-| 팀원 | 이홍규 | |
-| 팀원 | 전진영 | |
+| 이름 | 담당 업무 | GitHub |
+|------|-----------|--------|
+| 노민환 | 팀장 / 파이프라인 설계 / 데이터 정제 / 뉴스 API 연동 / Streamlit GUI 설계 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/minhwan123) |
+| 김대호 | 역할쓰세요 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/jjhok6389) |
+| 이홍규 | 역할쓰세요 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/4hglee-ops) |
+| 전진영 | 역할쓰세요 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/msi67811-jpg) |
 
 <br>
 

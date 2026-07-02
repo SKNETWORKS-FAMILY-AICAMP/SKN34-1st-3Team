@@ -1,297 +1,205 @@
-# 🚗 Car-BTI: 전국 자동차 소비 성향 분석 대시보드
+# OO과정 n차 프로젝트
 
-**MBTI 스타일 4축 16유형으로 전국 17개 시도의 자동차 등록 현황을 시각화하고, 맞춤형 차량 추천·FAQ·AI 상담을 제공하는 Streamlit 대시보드**
+## 1. 팀 소개
 
----
-
-## 1. 프로젝트 개요
-
-| 항목 | 내용 |
-|------|------|
-| **주제** | 전국 자동차 등록 현황 분석 및 기업 FAQ·맞춤 추천 시스템 |
-| **목표** | 지역별 Car-BTI(4축 16유형) 시각화 + 사용자 성향 기반 차량·FAQ·뉴스·AI 상담 제공 |
-| **데이터 출처** | 국토교통부 2026년 5월 자동차 등록자료 통계, 브랜드 공식 FAQ, K Car 옥션, 위키피디아 |
-| **규모** | 지역 17개 시도 · 추천 차량 64대 · FAQ 750+건 |
+- 팀명 :
+- 멤버 개인 깃허브 계정과 연동 : 각자 넣을 것
+- 팀역할
+    - 노민환 : 국토부 엑셀 데이터 전처리·ERD 설계·Streamlit UI/DB 연동·공통 변수/함수명 조율
+    - 이홍규 : MySQL DB 아키텍처 설계·테이블 생성·CSV 적재 파이프라인 구축
+    - 김대호 : 브랜드/K Car FAQ 크롤링·차량 이미지 수집·크롤링 데이터 정제
+    - 전진영 : Car-BTI 결과 이미지·다운로드 기능·기능 QA
 
 ---
 
-## 2. 개발 배경 및 필요성
+## 2. 프로젝트 개요
 
-- 전국 시·도별 **자동차 등록 패턴**(친환경·차종·성별·수입/국산)을 한눈에 비교할 도구가 필요함
-- 단순 통계 표를 넘어 **MBTI형 4자리 코드(Car-BTI)** 로 지역·사용자 성향을 직관적으로 표현
-- 차량 구매·유지와 관련된 **브랜드 FAQ**를 크롤링·태깅해 페르소나별로 큐레이션
-- **RAG 기반 AI 챗봇**으로 FAQ·차량·지역 데이터를 근거로 한 상담 기능 제공
-
----
-
-## 3. 주요 기능
-
-### Tab 1 · 🗺️ 지역 분석
-- Folium 지도 5모드 (친환경 / 대형 / 여성 / 수입 / 16색 페르소나)
-- 선택 지역 4축 레이더 차트 · 페르소나 코드·한 줄 요약
-- 페르소나 매칭 차량 4대 · 맞춤 FAQ Top 10 · 최신 뉴스
-
-### Tab 2 · 🧪 나의 Car-BTI 테스트
-- 4문항 설문 → 4자리 Car-BTI 산출
-- 유사 지역 Top 3 · 추천 차량 · FAQ · 뉴스
-
-### Tab 3 · 💬 AI 상담 챗봇 (RAG)
-- FAQ 답변 · 성향 진단 · 차량 추천 · 뉴스를 하나의 챗 창에서 처리
-- Google Gemini + `company_faq` 근거 기반 답변 (환각 최소화)
-- API 키 미설정 시에도 키워드 검색·추천 **기본 모드** 동작
-
-### 공통
-- 네이버 뉴스 API로 추천 브랜드/모델 관련 **실시간 뉴스** 조회 (Streamlit 캐시)
+- 프로젝트 명 : Car-BTI
+- 프로젝트 소개 :  
+  전국 17개 시·도 자동차 등록 데이터를 기반으로 친환경성/차 규모/성별/제조국 4축을 MBTI 스타일 16유형(Car-BTI)으로 분석하고, 지역별 통계·페르소나 매칭 차량·브랜드 FAQ·뉴스를 제공하는 Streamlit 기반 웹 대시보드
+- 프로젝트 필요성(배경) :  
+  지역별 자동차 소비 성향을 직관적으로 비교할 수 있는 분석 도구가 필요하며, 공공 통계 데이터를 사용자 친화적인 형태로 제공해 차량 구매 전 탐색·비교·의사결정을 돕기 위함
+- 프로젝트 목표 :  
+  전국 자동차 등록 데이터를 Car-BTI 지표로 구조화하고, 사용자 성향에 맞는 지역 인사이트·차량 추천·브랜드 FAQ를 통합 제공함으로써 차량 구매 전 의사결정을 돕는 데이터 기반 개인화 서비스(MVP)를 구현한다. 단순 통계 조회를 넘어 실사용 가능한 상담형 자동차 정보 상품으로 확장 가능한 기반을 마련하는 것을 목표로 함
 
 ---
 
-## 4. 기술 스택
+## 3. 기술 스택
 
 | 구분 | 기술 |
 |------|------|
 | **Frontend / UI** | Streamlit, Folium, streamlit-folium, Plotly |
 | **Backend** | Python, Pandas |
 | **Database** | MySQL, PyMySQL, SQLAlchemy |
-| **크롤링** | BeautifulSoup4, Selenium, requests |
-| **외부 API** | 네이버 뉴스 검색 API, Google Gemini API |
-| **AI** | RAG (임베딩 검색 + LLM), google-genai |
+| **Crawling / Data** | BeautifulSoup4, Selenium, webdriver-manager, requests, openpyxl |
+| **외부 API** | 네이버 뉴스 검색 API, GeoJSON(전국 시도 경계) |
+| **AI** |  |
 
 ---
 
-## 5. 시스템 아키텍처 (전체 구조)
+## 4. WBS
 
-```mermaid
-flowchart TB
-    subgraph User["👤 사용자"]
-        Browser["웹 브라우저"]
-    end
+- 첨부 파일 : `docs/WBS.csv`
 
-    subgraph App["🖥️ Streamlit 대시보드 (app.py)"]
-        Tab1["Tab1 · 지역 분석"]
-        Tab2["Tab2 · Car-BTI 테스트"]
-        Tab3["Tab3 · AI 상담 챗봇"]
-    end
-
-    subgraph Python["🐍 Python 백엔드"]
-        AppCore["app.py<br/>지도·차트·추천·FAQ UI"]
-        Chatbot["chatbot/<br/>RAG · 의도분류 · Gemini"]
-        NewsAPI["news_api.py<br/>뉴스 검색·정제"]
-        DBConfig["db_config.py<br/>MySQL 연결"]
-    end
-
-    subgraph DataPipeline["📥 데이터 수집·적재"]
-        Prepare["prepare_data.py<br/>XLSX → CSV"]
-        Load["load_to_mysql.py<br/>CSV → DB"]
-        Setup["setup_db.py<br/>테이블·시드 생성"]
-        CrawlFAQ["crawl_brand_faq.py<br/>crawl_faq.py"]
-        CrawlImg["crawl_car_images.py"]
-    end
-
-    subgraph Storage["💾 저장소"]
-        MySQL[("MySQL (car_bti)<br/>region_stats<br/>persona_cars<br/>company_faq")]
-        CSV["data/region_stats.csv"]
-        XLSX["data/*.xlsx<br/>(국토부 원본)"]
-        LocalImg["db/images/<br/>(이미지 백업)"]
-    end
-
-    subgraph External["🌐 외부 데이터 소스"]
-        MOLIT["국토교통부<br/>등록자료 통계"]
-        BrandSites["브랜드 공식 FAQ"]
-        KCar["K Car 옥션 FAQ"]
-        Wiki["위키피디아<br/>차량 이미지"]
-        Naver["네이버 뉴스 API"]
-        Gemini["Google Gemini API"]
-        GeoJSON["GeoJSON<br/>(시도 경계)"]
-    end
-
-    Browser --> App
-    Tab1 & Tab2 & Tab3 --> AppCore
-    Tab3 --> Chatbot
-
-    AppCore --> DBConfig
-    Chatbot --> DBConfig
-    Chatbot --> Gemini
-    AppCore --> NewsAPI
-    NewsAPI --> Naver
-    AppCore --> GeoJSON
-
-    DBConfig --> MySQL
-
-    MOLIT --> XLSX
-    XLSX --> Prepare --> CSV --> Load --> MySQL
-    Setup --> MySQL
-
-    BrandSites & KCar --> CrawlFAQ --> MySQL
-    Wiki --> CrawlImg --> MySQL
-    CrawlImg --> LocalImg
-```
+| 구분 | 작업 | 기능상세 | 완료여부 |
+|------|------|----------|----------|
+| 기획 및 설계 | 주제 선정 | Car-BTI(자동차 소비성향 4축 16유형) 컨셉 확정 | 완료 |
+| 기획 및 설계 | 데이터 탐색 | 국토부 자동차 등록자료 통계(6개월) 확보·분석 | 완료 |
+| 기획 및 설계 | ERD 작성 | region_stats·persona_cars·company_faq 등 설계 | 완료 |
+| 기획 및 설계 | WBS 작성 | 작업 분해 및 일정 정의 | 완료 |
+| 기획 및 설계 | Git 브랜치 전략 정의 | 브랜치/커밋 규칙 수립 | 완료 |
+| 기획 및 설계 | 디자인 컨셉 정의 | 16색 페르소나·대시보드 UI 컨셉 | 완료 |
+| 기획 및 설계 | 프로젝트 디렉터리 구조 설정 | crawler·data·docs 등 구조화 | 완료 |
+| 기획 및 설계 | 프로젝트 생성 | 저장소·가상환경·의존성 초기화 | 완료 |
+| 개발-DB구축 | MySQL DB 생성 | car_bti 데이터베이스 생성 | 완료 |
+| 개발-DB구축 | TABLE 생성 | region_stats·persona_cars·company_faq 등 생성 | 완료 |
+| 개발-DB구축 | 크롤링 데이터 연동 | FAQ·차량 이미지 등 DB 적재 | 완료 |
+| 개발-DB구축 | API 데이터 연동 | 뉴스·지도 데이터 연동 | 완료 |
+| 개발-데이터 처리 | XLSX→CSV 변환 | region_ETL.py 기반 시트 전처리 및 DB 설계 | 완료 |
+| 개발-데이터 처리 | 페르소나 코드 산출 | 랭크 기준 4자리 코드 부여 | 완료 |
+| 개발-데이터 처리 | CSV→MySQL 적재 | 전처리 CSV DB 적재 | 완료 |
+| 개발-웹 크롤링 | 브랜드 공식 FAQ 크롤링 | 제네시스·현대·기아·BMW·미니 등 | 완료 |
+| 개발-웹 크롤링 | K Car 옥션 FAQ 크롤링 | Selenium 6개 탭 수집 | 완료 |
+| 개발-웹 크롤링 | 차량 이미지 크롤링 | 위키피디아 인포박스 이미지 수집 | 완료 |
+| 개발-웹 크롤링 | Fallback 시드 구성 | 크롤링 불가 브랜드 대표 FAQ | 완료 |
+| 개발-API 콜 및 변환 | 네이버 뉴스 API KEY 발급 | Client ID/Secret 발급·환경변수 관리 | 완료 |
+| 개발-API 콜 및 변환 | 뉴스 API 호출 및 정제 | news_api.py 최신 뉴스 조회 | 완료 |
+| 개발-API 콜 및 변환 | 지도 API 콜 | GeoJSON 시도 경계 데이터 로드 | 완료 |
+| 개발-STREAMLIT 구현 | Main Page/헤더 구현 | 타이틀·축 설명·탭 구성 | 완료 |
+| 개발-STREAMLIT 구현 | 지역 분석 Page 구현 | 지도 5모드·레이더 차트 | 완료 |
+| 개발-STREAMLIT 구현 | 페르소나 매칭 차량 구현 | 1:1 추천 차량 카드 | 완료 |
+| 개발-STREAMLIT 구현 | 성향 맞춤 FAQ 구현 | 브랜드별 라운드로빈 FAQ | 완료 |
+| 개발-STREAMLIT 구현 | 추천 차량 뉴스 섹션 구현 | 네이버 뉴스 연동 표시 | 완료 |
+| 개발-STREAMLIT 구현 | 나의 Car-BTI 테스트 Page 구현 | 4문항 진단→결과 분석 | 완료 |
+| 개발-STREAMLIT 구현 | 페르소나 이미지 카드·다운로드 | 다운로드 기능 구현 | 완료 |
+| 개발-STREAMLIT 구현 | 지역 검색 기능 | 지역 검색 값에 맞는 Car-BTI 표현 | 완료 |
+| 개발-STREAMLIT 구현 | 통계 그래프 | 선택 기준에 따른 통계값 표현 | 완료 |
+| 개발-STREAMLIT 구현 | 차량 통계 요약 | 선택 지역의 비율 요약 | 완료 |
+| 테스트 및 마무리 | DB 적재 점검 | check_db.py 상태 점검 | 완료 |
+| 테스트 및 마무리 | README/문서화 | 실행법·구조·설정 가이드 | 완료 |
 
 ---
 
-## 6. 기능 흐름도
+## 5. 요구사항 명세서
 
-### 6-1. 데이터 파이프라인 (수집 → 가공 → 적재)
+- 기준 문서 : `docs/요구사항정의서.csv` (회의록 기반 보완 예정)
+- 사진 첨부 예정
 
-```mermaid
-flowchart LR
-    subgraph Input["📂 입력 데이터"]
-        A1["국토부 XLSX<br/>(17개 시도)"]
-        A2["브랜드 FAQ<br/>(HTML/API/Selenium)"]
-        A3["K Car 옥션 FAQ<br/>(Selenium)"]
-        A4["위키피디아<br/>(requests+BS4)"]
-    end
-
-    subgraph Process["⚙️ Python 처리"]
-        B1["prepare_data.py"]
-        B2["crawl_brand_faq.py<br/>crawl_faq.py"]
-        B3["crawl_car_images.py"]
-        B4["setup_db.py<br/>load_to_mysql.py"]
-    end
-
-    subgraph Output["🗄️ MySQL"]
-        C1[("region_stats")]
-        C2[("company_faq")]
-        C3[("persona_cars")]
-    end
-
-    A1 --> B1 -->|"CSV"| B4 --> C1
-    A2 & A3 --> B2 --> C2
-    A4 --> B3 --> C3
-    B4 --> C2 & C3
-```
-
-| 데이터 | 스크립트 | 방식 | 저장 테이블 |
-|--------|----------|------|-------------|
-| 지역 등록 통계 | `prepare_data.py` → `load_to_mysql.py` | XLSX → CSV → MySQL | `region_stats` |
-| 브랜드 FAQ | `crawl_brand_faq.py` | requests / API / Selenium | `company_faq` |
-| K Car 옥션 FAQ | `crawl_faq.py` | Selenium (탭 클릭) | `company_faq` |
-| 차량 이미지 | `crawl_car_images.py` | requests + BeautifulSoup | `persona_cars` |
-
-### 6-2. Streamlit 사용자 흐름
-
-```mermaid
-flowchart TD
-    Start(["streamlit run app.py"]) --> Load["MySQL + GeoJSON 로드"]
-    Load --> Tabs{"탭 선택"}
-
-    Tabs --> T1["🗺️ 지역 분석"]
-    Tabs --> T2["🧪 Car-BTI 테스트"]
-    Tabs --> T3["💬 AI 상담 챗봇"]
-
-    T1 --> T1D["지도·레이더·차량·FAQ·뉴스"]
-    T2 --> T2C["4문항 진단 → 결과·추천"]
-    T3 --> T3D["RAG 검색 → Gemini 답변"]
-
-    T1D & T2C & T3D --> End(["화면 출력"])
-```
-
-### 6-3. AI 챗봇 RAG 흐름
-
-```mermaid
-flowchart TD
-    Q["사용자 질문"] --> Intent["의도 분류<br/>FAQ/진단/추천/뉴스"]
-    Intent --> Search["FAQ 유사도 검색<br/>retriever.py"]
-    Search --> Context["참고자료 조립<br/>FAQ + 차량 + 지역"]
-    Context --> LLM["Gemini 답변<br/>gemini-2.5-flash"]
-    LLM --> Answer["채팅 UI 출력"]
-```
+| 요구사항 ID | 요구사항명 | 기능 요구사항 | 상태 |
+|-------------|-----------|--------------|------|
+| REQ_001 | MySQL DB 생성 | `car_bti` 데이터베이스 스키마 설계 및 생성 | 완료 |
+| REQ_002 | TABLE 생성 | `region_stats`·`persona_cars`·`company_faq` 등 테이블 생성 | 완료 |
+| REQ_003 | 국토부 데이터 전처리 | XLSX→CSV 변환 및 4축 비율·페르소나 코드 산출 | 완료 |
+| REQ_004 | region_stats 적재 | 처리된 CSV를 MySQL `region_stats`에 적재 | 완료 |
+| REQ_005 | 브랜드 FAQ 크롤링 | 10개 브랜드 공식 FAQ 수집·적재(실패 시 시드) | 완료 |
+| REQ_006 | K Car 옥션 FAQ 크롤링 | Selenium 기반 6개 탭 FAQ 수집 | 완료 |
+| REQ_007 | 차량 이미지 크롤링 | 위키피디아 이미지 수집·LONGBLOB 저장 | 완료 |
+| REQ_008 | 네이버 뉴스 API 연동 | 추천 차량/브랜드 기반 최신 뉴스 조회 | 완료 |
+| REQ_009 | 지도 시각화 데이터 연동 | GeoJSON 기반 17개 시도 지도 렌더링 | 완료 |
+| REQ_010 | Main/지역 분석 Page | 지도 5모드·레이더·페르소나 분석 UI | 완료 |
+| REQ_011 | Car-BTI 테스트 Page | 4문항 진단→페르소나 산출·유사 지역/차량 | 완료 |
+| REQ_012 | 맞춤 FAQ/추천 차량 Page | 페르소나 기반 FAQ·차량 카드 노출 | 완료 |
 
 ---
 
-## 7. ERD (데이터베이스 구조)
+## 6. ERD
 
-```mermaid
-erDiagram
-    region_stats {
-        VARCHAR region PK "시도명"
-        FLOAT eco_ratio "친환경 비율"
-        FLOAT large_ratio "대형차 비율"
-        FLOAT female_ratio "여성 비율"
-        FLOAT import_ratio "수입차 비율"
-        CHAR persona_code "4자리 Car-BTI"
-    }
+- DB명 : `car_bti`
+- 데이터 기간 : 6개월 (`202512` ~ `202605`)
+- `year_month` 형식 : `yyyymm` (char(6))
 
-    persona_cars {
-        INT car_id PK
-        CHAR persona_code "매칭 유형"
-        VARCHAR brand
-        VARCHAR car_model
-        VARCHAR price
-        TEXT reason
-        LONGBLOB img_data
-        VARCHAR img_mime
-    }
+### 주요 테이블
 
-    company_faq {
-        INT faq_id PK
-        VARCHAR company
-        VARCHAR car_category
-        TEXT question
-        TEXT answer
-        VARCHAR persona_tags
-    }
+| 테이블명 | 설명 |
+|----------|------|
+| `region_stats` | 연월·지역별 4축 비율 및 `persona_code` 집계 결과 |
+| `tbl_fuel` | 연료별 등록 통계 |
+| `tbl_size` | 차량 크기별 등록 통계 |
+| `tbl_genderage` | 성별·연령별 등록 통계 |
+| `tbl_import` | 시군구별 수입차 등록 통계 |
+| `tbl_total` | 시군구별 전체 등록 통계 |
+| `tbl_persona_detail` | 16가지 Car-BTI 코드·특징·키워드·설명 |
+| `persona_cars` | 페르소나별 추천 차량(64대) 및 이미지 |
+| `company_faq` | 브랜드/K Car FAQ |
 
-    region_stats ||--o{ persona_cars : "persona_code"
-    persona_cars ||--o{ company_faq : "brand·persona_tags"
+### Car-BTI 산출 기준 (랭크 8:9 분할)
+
+| 축 | 1~8위 | 9~17위 |
+|----|-------|--------|
+| 연료 | E (친환경) | G (내연) |
+| 차량 크기 | L (대형) | S (소형) |
+| 성별 | F (여성) | M (남성) |
+| 수입 여부 | I (수입) | D (국산) |
+
+### 데이터 흐름
+
+```
+월별 원본 Excel
+    ↓
+Python 전처리 (region_ETL.py)
+    ↓
+year_month 컬럼 추가 CSV 생성
+    ↓
+원본 테이블 적재
+(tbl_fuel / tbl_size / tbl_genderage / tbl_import / tbl_total)
+    ↓
+집계·분석 (view_region_persona)
+    ↓
+region_stats 저장
+    ↓
+persona_code 기준 tbl_persona_detail, persona_cars 연결
 ```
 
-### Car-BTI 4축 · 임계값
-
-| 축 | A (높을 때) | B (낮을 때) | 임계값 |
-|----|-------------|-------------|--------|
-| 1 | E 친환경 | G 내연기관 | eco_ratio ≥ 14.0% |
-| 2 | L 대형/SUV | S 소형/세단 | large_ratio ≥ 14.8% |
-| 3 | F 여성 강세 | M 남성 강세 | female_ratio ≥ 27.5% |
-| 4 | I 수입 | D 국산 | import_ratio ≥ 12.0% |
-
-예) 서울 → `ELMI` (친환경·대형·남성·수입)
+- ERD 이미지 : (첨부 예정)
 
 ---
 
-## 10. 화면 구성
+## 7. 주요 프로시저
 
-| 탭 | 구성 요소 |
-|----|-----------|
-| **지역 분석** | 지도 5모드 · 페르소나 박스 · 레이더 차트 · 4축 설명 · 통계 progress bar · 추천 차량 4대 · FAQ · 뉴스 |
-| **Car-BTI 테스트** | 4문항 radio · 결과 박스 · 유사 지역 Top 3 · 추천 차량 · FAQ · 뉴스 |
-| **AI 상담 챗봇** | 채팅 UI · 예시 질문 · AI/기본 모드 배지 · 대화 초기화 |
+| 프로시저명 | 기능 | 주요 파라미터 |
+|-----------|------|--------------|
+| `sp_get_region_persona` | 지역 Car-BTI 조회 | region, year_month |
+| `sp_get_same_persona_regions` | 동일 Car-BTI 지역 조회 | region, year_month |
+| `sp_get_regions_by_persona` | 페르소나별 지역 조회 | persona_code, year_month |
+| `sp_get_top_regions_by_metric` | 지표 상위 지역 조회 | metric, year_month, limit |
+| `sp_get_erd_distribution` | ERD 집계 분포 조회 | table, dim_col, region, year_month, limit |
+| `sp_get_erd_top_regions` | ERD 집계 상위 지역 | table, dim_col, dim_value, year_month, limit |
+| `sp_get_persona_detail` | 페르소나 상세 조회 | persona_code |
+| `sp_get_recommended_cars` | 페르소나 추천 차량 조회 | persona_code |
+| `sp_search_company_faq` | 브랜드 FAQ 검색 | company, keyword, limit |
 
----
+- View : `view_region_persona`
+- SQL 스크립트 : (첨부 예정)
 
-## 11. 프로젝트 구조
+### 실행 예시
 
-```
-├── app.py                    # Streamlit 메인 (3탭)
-├── prepare_data.py           # XLSX → CSV
-├── load_to_mysql.py          # CSV → region_stats
-├── setup_db.py               # 테이블·시드 생성
-├── db_config.py              # MySQL 연결
-├── news_api.py               # 네이버 뉴스 API
-├── check_db.py               # DB 점검
-├── crawler/                  # FAQ·이미지 크롤러
-├── chatbot/                  # AI RAG 챗봇
-├── data/                     # 원본 XLSX · CSV
-├── docs/                     # WBS · 요구사항정의서 · 아키텍처
-└── db/images/                # 이미지 로컬 백업
+```sql
+CALL sp_get_region_persona('서울', '202605');
+CALL sp_get_same_persona_regions('부산', '202605');
+CALL sp_get_regions_by_persona('ESFI', '202605');
+CALL sp_get_top_regions_by_metric('eco_ratio', '202605', 5);
+CALL sp_search_company_faq('기아', '전기차', 3);
 ```
 
 ---
 
-## 12. 실행 방법
+## 8. 수행결과(테스트 및 시연 페이지, 캡처본)
+
+### 실행 방법
 
 ```bash
-# 1. 가상환경 & 패키지
+# 1. 가상환경 및 패키지
 python -m venv myvenv
-myvenv\Scripts\activate          # Windows
+myvenv\Scripts\activate
 pip install -r requirements.txt
 
 # 2. 환경 변수 (.env.example 참고)
-cp .env.example .env
+# MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE
+# NAVER_CLIENT_ID, NAVER_CLIENT_SECRET
 
-# 3. 데이터 적재
-python prepare_data.py
+# 3. DB 초기화 및 데이터 적재
 python setup_db.py
-python load_to_mysql.py
+python region_ETL.py
 python crawler/crawl_brand_faq.py
 python crawler/crawl_faq.py
 python crawler/crawl_car_images.py
@@ -301,40 +209,81 @@ python check_db.py
 streamlit run app.py
 ```
 
-브라우저: `http://localhost:8501`
+- 시연 페이지 : `http://localhost:8501`
+
+### 주요 시연 시나리오
+
+**Tab 1 · 지역 분석**
+- 지도 5모드(친환경/대형/여성/수입/16색 페르소나) 전환
+- 월 선택(`202512`~`202605`) 및 지역 검색
+- 선택 지역 레이더 차트·6개월 추이 그래프
+- 페르소나 매칭 차량·맞춤 FAQ·최신 뉴스
+
+**Tab 2 · 나의 Car-BTI 테스트**
+- 4문항 설문 → Car-BTI 4자리 코드 산출
+- 유사 지역 Top 3·추천 차량·맞춤 FAQ
+- 페르소나 이미지 카드 표시 및 다운로드
+
+- 테스트 결과/캡처본 : (한 명이 맡아서 Streamlit 화면 녹화 영상 + 캡처본 첨부 예정)
 
 ---
 
-## 13. 데이터 출처 및 크롤링
+## 9. 한 줄 회고
 
-| 구분 | 출처 | 수집 방식 |
-|------|------|-----------|
-| 지역 통계 | 국토교통부 등록자료 | XLSX → CSV → MySQL |
-| 브랜드 FAQ | 제네시스·현대·기아·BMW 등 | HTML / REST API / Selenium |
-| K Car 옥션 FAQ | kcarauction.com | Selenium (6탭) |
-| 차량 이미지 | 위키피디아 | requests + BeautifulSoup |
-| 뉴스 | 네이버 뉴스 검색 API | 실시간 조회 (DB 미저장) |
-| AI | Google Gemini | RAG 답변 생성 |
-
-크롤링 불가 브랜드(벤츠·테슬라 등)는 `faq_fallback.py` 시드 FAQ로 대체합니다.
+- 노민환 :
+- 이홍규 :
+- 김대호 :
+- 전진영 :
 
 ---
 
-## 14. 참고 자료
+## 10. 추가 고려
 
-- [Streamlit](https://docs.streamlit.io/)
-- [Folium](https://folium.readthedocs.io/)
-- [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/)
-- [Selenium](https://selenium-python.readthedocs.io/)
-- [네이버 뉴스 검색 API](https://developers.naver.com/docs/serviceapi/search/news/news.md)
-- [Google AI Studio (Gemini API)](https://aistudio.google.com/app/apikey)
+### 트러블슈팅
 
-### 관련 문서 (`docs/`)
+| 이슈 | 원인 | 해결 |
+|------|------|------|
+| Main App 실행 시 테이블 DROP 오류 | `setup_db.py`의 DROP TABLE이 기존 공유 테이블과 충돌 | DROP 구문 주석 처리 후 정상 동작, `TRUNCATE` 방식 전환 검토 |
+| 단일 월 데이터 한계 | 초기 1개월 데이터만 적재 | `year_month` 컬럼 추가 후 6개월치 누적 적재 구조로 변경 |
+| 크롤링 실패 브랜드 | 일부 브랜드 사이트 크롤링 불가 | `faq_fallback.py` 시드 FAQ로 대체 |
 
-| 파일 | 설명 |
+### 테스트 시나리오 / QA·UI·UX 개선 방향
+
+- [ ] 17개 시도 지도 클릭·지역 검색 시 Car-BTI 정상 반영
+- [ ] 월 선택 시 통계·그래프·추천 정보 갱신
+- [ ] 4문항 테스트 후 유사 지역 Top3·추천 차량·FAQ 일치 여부
+- [ ] 페르소나 이미지 표시 및 다운로드 동작
+- [ ] 네이버 뉴스 API 키 미설정 시 안내 메시지 표시
+- [ ] 추천 차량 브랜드와 FAQ 브랜드 매칭 일관성 검증
+
+### 기능 흐름도 / 아키텍처 구조도
+
+- 담당 : (한 명 지정 예정)
+- 참고 문서 : `docs/아키텍처_기능흐름도.md`
+
+### UI 시안 or UX Flow
+
+- 보류
+
+### 향후 개선 계획
+
+- [ ] 공공데이터 엑셀 자동 다운로드 → CSV 변환 → DB 적재 파이프라인 자동화
+- [ ] 하드코딩된 차량 정보를 DB 기반 조회로 전환
+- [ ] Car-BTI 설명 데이터를 `tbl_persona_detail`에서 동적 조회
+- [ ] 결과 공유용 Car-BTI 이미지 카드 고도화(SNS 공유 고려)
+- [ ] Stored Procedure 기반 조회로 애플리케이션 SQL 표준화
+
+### 역할 분담 & 협업 방식
+
+| 담당 | 역할 |
 |------|------|
-| `docs/WBS.csv` | 작업 분해 구조 |
-| `docs/요구사항정의서.csv` | 요구사항 정의 |
-| `docs/아키텍처_기능흐름도.md` | 상세 아키텍처·흐름도 |
+| 노민환 | 데이터 전처리·ERD·Streamlit UI/DB 연동 |
+| 이홍규 | DB 설계·구축·적재 |
+| 김대호 | 크롤링(FAQ·이미지) |
+| 전진영 | Car-BTI 이미지·QA |
 
-Last Updated: 2026-07-02 09:45
+- 협업 방식 : **GitHub Flow**
+  - `main` : 배포/시연용 안정 브랜치
+  - `feature/*` : 기능별 개발 브랜치
+  - PR 리뷰 후 merge
+  - 공통 변수명·DB 컬럼명·페르소나 코드 규격 사전 공유

@@ -219,7 +219,6 @@ def main() -> None:
         data, ext = fetched
         mime = MIME_BY_EXT.get(ext, "image/jpeg")
 
-        # 로컬 백업 저장
         local_path = os.path.join(IMAGES_DIR, f"{car_id}.{ext}")
         try:
             with open(local_path, "wb") as f:
@@ -228,7 +227,6 @@ def main() -> None:
         except Exception:
             rel_path = None
 
-        # MySQL 적재 (바이너리 + URL + mime)
         cur.execute(
             "UPDATE persona_cars SET img_data=%s, img_mime=%s, img_url=%s WHERE car_id=%s",
             (data, mime, rel_path or img_url, car_id),

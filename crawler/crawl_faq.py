@@ -220,3 +220,10 @@ if __name__ == "__main__":
     rows = crawl()
     save_to_db(rows)
     print("[DONE] Streamlit 앱을 새로고침하면 FAQ가 반영됩니다.")
+    try:
+        from chatbot.vector_store import ensure_vector_index
+
+        result = ensure_vector_index(force=True)
+        print(f"[VECTOR] FAQ Vector 인덱스 동기화: {result}")
+    except Exception as exc:
+        print(f"[WARN] Vector sync skipped: {exc}")

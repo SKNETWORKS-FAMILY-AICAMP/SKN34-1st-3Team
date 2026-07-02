@@ -17,6 +17,9 @@ db/
 # Streamlit secrets
 .streamlit/secrets.toml
 
+# Vector DB 로컬 인덱스
+data/chroma/
+
 # OS/IDE
 .DS_Store
 .idea/

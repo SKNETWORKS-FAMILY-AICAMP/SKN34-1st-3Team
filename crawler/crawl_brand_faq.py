@@ -332,6 +332,17 @@ def main() -> None:
                 print(f"  [WARN] {company}: 수집 0건")
         total += n
     print(f"\n[DONE] 총 {total}건 적재 완료")
+    _sync_vector_index_after_crawl()
+
+
+def _sync_vector_index_after_crawl() -> None:
+    try:
+        from chatbot.vector_store import ensure_vector_index
+
+        result = ensure_vector_index(force=True)
+        print(f"[VECTOR] FAQ Vector 인덱스 동기화: {result}")
+    except Exception as exc:
+        print(f"[WARN] Vector sync skipped: {exc}")
 
 
 if __name__ == "__main__":

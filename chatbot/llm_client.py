@@ -1,129 +1,94 @@
-"""OpenAI Chat API 클라이언트 (스로틀·재시도·잘림 방지 포함)."""
-
 from __future__ import annotations
 
+import logging
 import os
-import time
+from typing import Any
 
-try:
-    from dotenv import load_dotenv
+from openai import OpenAI
 
-    load_dotenv()
-except Exception:
-    pass
+logger = logging.getLogger(__name__)
 
-try:
-    from openai import APIStatusError, OpenAI, RateLimitError
-except ImportError:
-    OpenAI = None  # type: ignore
-    APIStatusError = Exception  # type: ignore
-    RateLimitError = Exception  # type: ignore
-
-_last_request_at: float = 0.0
-_CONTINUE_HINT = (
-    "이전 답변이 출력 제한으로 중간에 끊겼습니다. "
-    "끊긴 부분부터 이어서 완결된 문장으로만 마무리해 주세요. 이미 쓴 내용은 반복하지 마세요."
-)
+_client: OpenAI | None = None
 
 
-def _env_int(name: str, default: int) -> int:
-    try:
-        return int(os.getenv(name, str(default)))
-    except ValueError:
-        return default
-
-
-def _env_float(name: str, default: float) -> float:
-    try:
-        return float(os.getenv(name, str(default)))
-    except ValueError:
-        return default
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        # timeout으로 무한 대기 방지
+        _client = OpenAI(timeout=15.0)
+    return _client
 
 
 def is_available() -> bool:
-    return bool(os.getenv("OPENAI_API_KEY")) and OpenAI is not None
+    return bool(os.getenv("OPENAI_API_KEY"))
 
 
-def get_model() -> str:
-    return os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
-
-
-def _throttle() -> None:
-    global _last_request_at
-    interval = _env_float("OPENAI_MIN_REQUEST_INTERVAL", 2.0)
-    elapsed = time.monotonic() - _last_request_at
-    if elapsed < interval:
-        time.sleep(interval - elapsed)
-
-
-def chat_completion(
-    messages: list[dict[str, str]],
-    *,
-    max_tokens: int | None = None,
-) -> str:
-    """OpenAI chat.completions 호출. length 잘림 시 자동 이어쓰기."""
+def classify_db_related(query: str) -> bool | None:
+    """
+    LLM 분류 보조기.
+    True/False 판단 불가 또는 실패 시 None 반환.
+    """
     if not is_available():
-        raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
-
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    model = get_model()
-    max_out = max_tokens or _env_int("OPENAI_MAX_OUTPUT_TOKENS", 2048)
-    max_retries = _env_int("OPENAI_MAX_RETRIES", 3)
-    max_continuations = _env_int("OPENAI_MAX_CONTINUATIONS", 2)
-
-    last_err: Exception | None = None
-    for attempt in range(max_retries):
-        try:
-            _throttle()
-            content = _complete_with_continuation(
-                client, model, messages, max_out, max_continuations,
-            )
-            global _last_request_at
-            _last_request_at = time.monotonic()
-            return content
-        except RateLimitError as exc:
-            last_err = exc
-            time.sleep(2 ** attempt)
-        except APIStatusError as exc:
-            if exc.status_code == 429:
-                last_err = exc
-                time.sleep(2 ** attempt)
-                continue
-            raise
-        except Exception as exc:
-            last_err = exc
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)
-
-    raise RuntimeError(f"OpenAI API 호출 실패: {last_err}")
-
-
-def _complete_with_continuation(
-    client: OpenAI,
-    model: str,
-    messages: list[dict[str, str]],
-    max_tokens: int,
-    max_continuations: int,
-) -> str:
-    """finish_reason=length 이면 이어쓰기로 문장 잘림 방지."""
-    parts: list[str] = []
-    current = list(messages)
-
-    for _ in range(max_continuations + 1):
-        resp = client.chat.completions.create(
-            model=model,
-            messages=current,  # type: ignore[arg-type]
-            max_tokens=max_tokens,
-            temperature=0.4,
+        return None
+    try:
+        client = _get_client()
+        resp = client.responses.create(
+            model=os.getenv("OPENAI_CLASSIFIER_MODEL", "gpt-4o-mini"),
+            input=[
+                {
+                    "role": "system",
+                    "content": (
+                        "너는 사용자의 질문이 자동차 DB 데이터(지역 통계/차량 추천/브랜드 FAQ)와 "
+                        "직접 관련 있는지 분류한다. 관련 있으면 RELATED, 아니면 IRRELEVANT만 출력."
+                    ),
+                },
+                {"role": "user", "content": query},
+            ],
+            temperature=0,
+            max_output_tokens=5,
         )
-        chunk = (resp.choices[0].message.content or "").strip()
-        if chunk:
-            parts.append(chunk)
-        if resp.choices[0].finish_reason != "length":
-            break
-        current = current + [
-            {"role": "assistant", "content": chunk},
-            {"role": "user", "content": _CONTINUE_HINT},
-        ]
+        label = (resp.output_text or "").strip().upper()
+        if "RELATED" in label and "IRRELEVANT" not in label:
+            return True
+        if "IRRELEVANT" in label:
+            return False
+        return None
+    except Exception as exc:
+        logger.warning("LLM 분류 실패: %s", type(exc).__name__)
+        return None
 
-    return "\n".join(parts).strip()
+
+def generate_answer(system_prompt: str, user_question: str, context_text: str) -> str:
+    if not is_available():
+        return (
+            "OPENAI_API_KEY가 설정되지 않아 AI 응답을 생성할 수 없습니다. "
+            "DB 조회 결과만 확인해 주세요."
+        )
+
+    client = _get_client()
+    retries = int(os.getenv("OPENAI_MAX_RETRIES", "3"))
+    last_exc: Exception | None = None
+    for attempt in range(retries):
+        try:
+            response = client.responses.create(
+                model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"[사용자 질문]\n{user_question}\n\n"
+                            f"[DB 조회 컨텍스트]\n{context_text}\n\n"
+                            "위 컨텍스트만 근거로 답변하세요."
+                        ),
+                    },
+                ],
+                temperature=0.2,
+                max_output_tokens=int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "500")),
+            )
+            text = (response.output_text or "").strip()
+            return text or "조회된 데이터가 없습니다."
+        except Exception as exc:
+            last_exc = exc
+            logger.warning("LLM 생성 실패(%s/%s): %s", attempt + 1, retries, type(exc).__name__)
+    raise RuntimeError(f"LLM 생성 실패: {last_exc}")

@@ -287,9 +287,24 @@ def load_news_articles(query: str, display: int = 6):
         return []
     
 
+@st.cache_resource(show_spinner="Vector 인덱스 준비 중...")
+def load_vector_index():
+    """MySQL FAQ/페르소나 데이터를 Vector DB와 동기화."""
+    try:
+        from chatbot.vector_store import get_vector_index, ensure_vector_index
+
+        index = get_vector_index()
+        ensure_vector_index(force=False)
+        return index
+    except Exception as exc:
+        st.warning(f"Vector 인덱스 초기화 실패(키워드 검색으로 동작): {exc}")
+        return None
+
+
 geojson_data = load_geojson()
 df_stats_all = load_region_stats()   # ← 102행 전체
 faq_df, cars_df = load_db()
+vector_index = load_vector_index()
 
 # ── 월 선택용 옵션 (최신 → 과거 순) ──
 AVAILABLE_MONTHS = sorted(df_stats_all["year_month"].unique(), reverse=True)
@@ -1101,5 +1116,6 @@ with tab3:
         persona_meta=PERSONA_NICKNAMES,
         recommend_fn=get_recommended_cars,
         news_fn=_chatbot_news_fn,
+        vector_index=vector_index,
     )
     render_chatbot(chat_ctx)

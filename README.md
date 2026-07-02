@@ -10,9 +10,9 @@
 | 이름 | 담당 업무 | GitHub |
 |------|-----------|--------|
 | 노민환 | 팀장 / 파이프라인 설계 / 데이터 정제 / 뉴스 API 연동 / Streamlit GUI 설계 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/minhwan123) |
-| 김대호 | 역할쓰세요 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/jjhok6389) |
-| 이홍규 | 역할쓰세요 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/4hglee-ops) |
-| 전진영 | 역할쓰세요 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/msi67811-jpg) |
+| 김대호 |  | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/jjhok6389) |
+| 이홍규 |  | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/4hglee-ops) |
+| 전진영 |  | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/msi67811-jpg) |
 
 <br>
 
@@ -245,3 +245,16 @@ streamlit run app.py
 ```
 
 브라우저에서 `http://localhost:8501` 로 접속합니다.
+
+<br>
+
+## 💬 한 줄 회고
+
+> **노민환** : python, mysql을 기반으로 다양한 기능을 구현하며 서비스를 확장하는 경험은 유의미했지만, 앞으로는 기능을 늘리기보다 핵심 기능을 깊이 있게 완성하는 프로젝트를 해보고 싶다는 생각이 들었습니다.
+>
+> **김대호** :
+>
+> **이홍규** :
+>
+> **전진영** :
+

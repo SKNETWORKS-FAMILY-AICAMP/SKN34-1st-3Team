@@ -1,334 +1,340 @@
 # 🚗 Car-BTI: 전국 자동차 소비 성향 분석 대시보드
 
-**MBTI 스타일 4축 16유형으로 전국 17개 시도의 자동차 등록 현황을 시각화하고, 사용자 맞춤형 차량 추천 및 FAQ를 제공하는 Streamlit 대시보드**
+**MBTI 스타일 4축 16유형으로 전국 17개 시도의 자동차 등록 현황을 시각화하고, 맞춤형 차량 추천·FAQ·AI 상담을 제공하는 Streamlit 대시보드**
 
 ---
 
-## 📌 프로젝트 개요
+## 1. 프로젝트 개요
 
-- **주제**: 전국 자동차 등록 현황 및 기업 FAQ 조회 시스템
-- **기술 스택**: Python, Streamlit, MySQL, Pandas, Folium, Plotly, BeautifulSoup, Selenium, Requests, Naver Search API, Google Gemini (RAG 챗봇)
-- **팀 구성**: SKN34기 3팀 (김대호, 노민환, 이홍규, 전진영)
-- **데이터 출처**: 국토교통부 2026년 5월 자동차 등록자료 통계
-- **크롤링 대상**: 10개 브랜드 공식 FAQ + K Car 옥션 + 시드 데이터 (총 750+건)
-- **차량 데이터**: 16개 페르소나별 4대씩 큐레이션 (총 64대) + 위키피디아 이미지
-- **뉴스 데이터**: 네이버 뉴스 검색 API를 활용한 추천 차량/브랜드 관련 최신 자동차 뉴스
-
----
-
-## 🎯 핵심 기능
-
-### 1. 🗺️ 지역별 Car-BTI 분석
-- **4축 시각화**: 친환경(E/G) · 대형(L/S) · 성별(F/M) · 수입(I/D)
-- **5가지 지도 모드**:
-  - 친환경 차량 비율 
-  - 대형 승용차 비율 
-  - 여성 등록 비율 
-  - 수입차 비중
-  - 16색 페르소나 매핑
-- **레이더 차트**: 선택 지역의 4축 점수 시각화
-- **페르소나 매칭**: 지역별 1:1 큐레이션 차량 4대 추천
-- **맞춤 FAQ**: 추천 브랜드별 자동 태깅 FAQ 10개
-
-### 2. 🧪 나의 Car-BTI 테스트
-- **4문항 진단**: 친환경 여부, 차종(대/소), 성별, 수입/국산 선택
-- **결과 분석**: 
-  - 본인 페르소나 코드 + 한 줄 요약
-  - 4축 상세 설명
-  - 비슷한 지역 Top 3 (일치 자리수 표시)
-  - 맞춤형 차량 + FAQ
-
- ### 3. 📰 추천 차량 기반 최신 자동차 뉴스
-- **네이버 뉴스 검색 API 연동**: 추천 차량 또는 브랜드명을 기반으로 최신 자동차 뉴스 조회
-- **실시간 정보 제공**: 차량 구매·선택에 참고할 수 있는 최신 시장/브랜드/모델 뉴스 제공
-- **페르소나별 검색어 자동 생성**: 추천 차량 브랜드와 모델명을 조합해 뉴스 검색
-- **안전한 API 키 관리**: `.env` 환경변수로 Client ID / Secret 관리
-- **캐싱 적용**: Streamlit 캐시를 사용해 불필요한 API 호출 최소화
-
-### 4. 💬 AI 상담 챗봇 (RAG)
-- **종합 상담**: 하나의 챗 창에서 FAQ 답변 · 성향 진단 · 차량 추천 · 최신 뉴스를 모두 처리
-- **RAG 기반 답변**: `company_faq`(750+건)를 지식베이스로 삼아 근거 있는 답변 생성 (환각 최소화)
-- **의미 검색 + 폴백**: Gemini 키가 있으면 임베딩 의미 검색, 없으면 키워드 검색으로 자동 전환
-- **AI 모드 / 기본 모드**: `GEMINI_API_KEY` 설정 시 대화형 AI 답변, 미설정 시에도 FAQ 검색·추천은 정상 동작
-- **무료 티어 활용**: Google Gemini(`gemini-2.5-flash` + `gemini-embedding-001`) 무료 티어로 동작
-- **기존 로직 재활용**: 페르소나 매칭(`get_recommended_cars`)·뉴스 API를 그대로 활용
+| 항목 | 내용 |
+|------|------|
+| **주제** | 전국 자동차 등록 현황 분석 및 기업 FAQ·맞춤 추천 시스템 |
+| **목표** | 지역별 Car-BTI(4축 16유형) 시각화 + 사용자 성향 기반 차량·FAQ·뉴스·AI 상담 제공 |
+| **데이터 출처** | 국토교통부 2026년 5월 자동차 등록자료 통계, 브랜드 공식 FAQ, K Car 옥션, 위키피디아 |
+| **규모** | 지역 17개 시도 · 추천 차량 64대 · FAQ 750+건 |
 
 ---
 
-## 📦 실행
+## 2. 개발 배경 및 필요성
 
-### 1단계: 저장소 클론
-```bash
-git clone https://github.com/SKNETWORKS-FAMILY-AICAMP/SKN34-1st-3Team.git
-cd SKN34-1st-3Team
+- 전국 시·도별 **자동차 등록 패턴**(친환경·차종·성별·수입/국산)을 한눈에 비교할 도구가 필요함
+- 단순 통계 표를 넘어 **MBTI형 4자리 코드(Car-BTI)** 로 지역·사용자 성향을 직관적으로 표현
+- 차량 구매·유지와 관련된 **브랜드 FAQ**를 크롤링·태깅해 페르소나별로 큐레이션
+- **RAG 기반 AI 챗봇**으로 FAQ·차량·지역 데이터를 근거로 한 상담 기능 제공
+
+---
+
+## 3. 주요 기능
+
+### Tab 1 · 🗺️ 지역 분석
+- Folium 지도 5모드 (친환경 / 대형 / 여성 / 수입 / 16색 페르소나)
+- 선택 지역 4축 레이더 차트 · 페르소나 코드·한 줄 요약
+- 페르소나 매칭 차량 4대 · 맞춤 FAQ Top 10 · 최신 뉴스
+
+### Tab 2 · 🧪 나의 Car-BTI 테스트
+- 4문항 설문 → 4자리 Car-BTI 산출
+- 유사 지역 Top 3 · 추천 차량 · FAQ · 뉴스
+
+### Tab 3 · 💬 AI 상담 챗봇 (RAG)
+- FAQ 답변 · 성향 진단 · 차량 추천 · 뉴스를 하나의 챗 창에서 처리
+- Google Gemini + `company_faq` 근거 기반 답변 (환각 최소화)
+- API 키 미설정 시에도 키워드 검색·추천 **기본 모드** 동작
+
+### 공통
+- 네이버 뉴스 API로 추천 브랜드/모델 관련 **실시간 뉴스** 조회 (Streamlit 캐시)
+
+---
+
+## 4. 기술 스택
+
+| 구분 | 기술 |
+|------|------|
+| **Frontend / UI** | Streamlit, Folium, streamlit-folium, Plotly |
+| **Backend** | Python, Pandas |
+| **Database** | MySQL, PyMySQL, SQLAlchemy |
+| **크롤링** | BeautifulSoup4, Selenium, requests |
+| **외부 API** | 네이버 뉴스 검색 API, Google Gemini API |
+| **AI** | RAG (임베딩 검색 + LLM), google-genai |
+
+---
+
+## 5. 시스템 아키텍처 (전체 구조)
+
+```mermaid
+flowchart TB
+    subgraph User["👤 사용자"]
+        Browser["웹 브라우저"]
+    end
+
+    subgraph App["🖥️ Streamlit 대시보드 (app.py)"]
+        Tab1["Tab1 · 지역 분석"]
+        Tab2["Tab2 · Car-BTI 테스트"]
+        Tab3["Tab3 · AI 상담 챗봇"]
+    end
+
+    subgraph Python["🐍 Python 백엔드"]
+        AppCore["app.py<br/>지도·차트·추천·FAQ UI"]
+        Chatbot["chatbot/<br/>RAG · 의도분류 · Gemini"]
+        NewsAPI["news_api.py<br/>뉴스 검색·정제"]
+        DBConfig["db_config.py<br/>MySQL 연결"]
+    end
+
+    subgraph DataPipeline["📥 데이터 수집·적재"]
+        Prepare["prepare_data.py<br/>XLSX → CSV"]
+        Load["load_to_mysql.py<br/>CSV → DB"]
+        Setup["setup_db.py<br/>테이블·시드 생성"]
+        CrawlFAQ["crawl_brand_faq.py<br/>crawl_faq.py"]
+        CrawlImg["crawl_car_images.py"]
+    end
+
+    subgraph Storage["💾 저장소"]
+        MySQL[("MySQL (car_bti)<br/>region_stats<br/>persona_cars<br/>company_faq")]
+        CSV["data/region_stats.csv"]
+        XLSX["data/*.xlsx<br/>(국토부 원본)"]
+        LocalImg["db/images/<br/>(이미지 백업)"]
+    end
+
+    subgraph External["🌐 외부 데이터 소스"]
+        MOLIT["국토교통부<br/>등록자료 통계"]
+        BrandSites["브랜드 공식 FAQ"]
+        KCar["K Car 옥션 FAQ"]
+        Wiki["위키피디아<br/>차량 이미지"]
+        Naver["네이버 뉴스 API"]
+        Gemini["Google Gemini API"]
+        GeoJSON["GeoJSON<br/>(시도 경계)"]
+    end
+
+    Browser --> App
+    Tab1 & Tab2 & Tab3 --> AppCore
+    Tab3 --> Chatbot
+
+    AppCore --> DBConfig
+    Chatbot --> DBConfig
+    Chatbot --> Gemini
+    AppCore --> NewsAPI
+    NewsAPI --> Naver
+    AppCore --> GeoJSON
+
+    DBConfig --> MySQL
+
+    MOLIT --> XLSX
+    XLSX --> Prepare --> CSV --> Load --> MySQL
+    Setup --> MySQL
+
+    BrandSites & KCar --> CrawlFAQ --> MySQL
+    Wiki --> CrawlImg --> MySQL
+    CrawlImg --> LocalImg
 ```
 
-### 2단계: 가상환경 생성 및 활성화
+---
+
+## 6. 기능 흐름도
+
+### 6-1. 데이터 파이프라인 (수집 → 가공 → 적재)
+
+```mermaid
+flowchart LR
+    subgraph Input["📂 입력 데이터"]
+        A1["국토부 XLSX<br/>(17개 시도)"]
+        A2["브랜드 FAQ<br/>(HTML/API/Selenium)"]
+        A3["K Car 옥션 FAQ<br/>(Selenium)"]
+        A4["위키피디아<br/>(requests+BS4)"]
+    end
+
+    subgraph Process["⚙️ Python 처리"]
+        B1["prepare_data.py"]
+        B2["crawl_brand_faq.py<br/>crawl_faq.py"]
+        B3["crawl_car_images.py"]
+        B4["setup_db.py<br/>load_to_mysql.py"]
+    end
+
+    subgraph Output["🗄️ MySQL"]
+        C1[("region_stats")]
+        C2[("company_faq")]
+        C3[("persona_cars")]
+    end
+
+    A1 --> B1 -->|"CSV"| B4 --> C1
+    A2 & A3 --> B2 --> C2
+    A4 --> B3 --> C3
+    B4 --> C2 & C3
+```
+
+| 데이터 | 스크립트 | 방식 | 저장 테이블 |
+|--------|----------|------|-------------|
+| 지역 등록 통계 | `prepare_data.py` → `load_to_mysql.py` | XLSX → CSV → MySQL | `region_stats` |
+| 브랜드 FAQ | `crawl_brand_faq.py` | requests / API / Selenium | `company_faq` |
+| K Car 옥션 FAQ | `crawl_faq.py` | Selenium (탭 클릭) | `company_faq` |
+| 차량 이미지 | `crawl_car_images.py` | requests + BeautifulSoup | `persona_cars` |
+
+### 6-2. Streamlit 사용자 흐름
+
+```mermaid
+flowchart TD
+    Start(["streamlit run app.py"]) --> Load["MySQL + GeoJSON 로드"]
+    Load --> Tabs{"탭 선택"}
+
+    Tabs --> T1["🗺️ 지역 분석"]
+    Tabs --> T2["🧪 Car-BTI 테스트"]
+    Tabs --> T3["💬 AI 상담 챗봇"]
+
+    T1 --> T1D["지도·레이더·차량·FAQ·뉴스"]
+    T2 --> T2C["4문항 진단 → 결과·추천"]
+    T3 --> T3D["RAG 검색 → Gemini 답변"]
+
+    T1D & T2C & T3D --> End(["화면 출력"])
+```
+
+### 6-3. AI 챗봇 RAG 흐름
+
+```mermaid
+flowchart TD
+    Q["사용자 질문"] --> Intent["의도 분류<br/>FAQ/진단/추천/뉴스"]
+    Intent --> Search["FAQ 유사도 검색<br/>retriever.py"]
+    Search --> Context["참고자료 조립<br/>FAQ + 차량 + 지역"]
+    Context --> LLM["Gemini 답변<br/>gemini-2.5-flash"]
+    LLM --> Answer["채팅 UI 출력"]
+```
+
+---
+
+## 7. ERD (데이터베이스 구조)
+
+```mermaid
+erDiagram
+    region_stats {
+        VARCHAR region PK "시도명"
+        FLOAT eco_ratio "친환경 비율"
+        FLOAT large_ratio "대형차 비율"
+        FLOAT female_ratio "여성 비율"
+        FLOAT import_ratio "수입차 비율"
+        CHAR persona_code "4자리 Car-BTI"
+    }
+
+    persona_cars {
+        INT car_id PK
+        CHAR persona_code "매칭 유형"
+        VARCHAR brand
+        VARCHAR car_model
+        VARCHAR price
+        TEXT reason
+        LONGBLOB img_data
+        VARCHAR img_mime
+    }
+
+    company_faq {
+        INT faq_id PK
+        VARCHAR company
+        VARCHAR car_category
+        TEXT question
+        TEXT answer
+        VARCHAR persona_tags
+    }
+
+    region_stats ||--o{ persona_cars : "persona_code"
+    persona_cars ||--o{ company_faq : "brand·persona_tags"
+```
+
+### Car-BTI 4축 · 임계값
+
+| 축 | A (높을 때) | B (낮을 때) | 임계값 |
+|----|-------------|-------------|--------|
+| 1 | E 친환경 | G 내연기관 | eco_ratio ≥ 14.0% |
+| 2 | L 대형/SUV | S 소형/세단 | large_ratio ≥ 14.8% |
+| 3 | F 여성 강세 | M 남성 강세 | female_ratio ≥ 27.5% |
+| 4 | I 수입 | D 국산 | import_ratio ≥ 12.0% |
+
+예) 서울 → `ELMI` (친환경·대형·남성·수입)
+
+---
+
+## 10. 화면 구성
+
+| 탭 | 구성 요소 |
+|----|-----------|
+| **지역 분석** | 지도 5모드 · 페르소나 박스 · 레이더 차트 · 4축 설명 · 통계 progress bar · 추천 차량 4대 · FAQ · 뉴스 |
+| **Car-BTI 테스트** | 4문항 radio · 결과 박스 · 유사 지역 Top 3 · 추천 차량 · FAQ · 뉴스 |
+| **AI 상담 챗봇** | 채팅 UI · 예시 질문 · AI/기본 모드 배지 · 대화 초기화 |
+
+---
+
+## 11. 프로젝트 구조
+
+```
+├── app.py                    # Streamlit 메인 (3탭)
+├── prepare_data.py           # XLSX → CSV
+├── load_to_mysql.py          # CSV → region_stats
+├── setup_db.py               # 테이블·시드 생성
+├── db_config.py              # MySQL 연결
+├── news_api.py               # 네이버 뉴스 API
+├── check_db.py               # DB 점검
+├── crawler/                  # FAQ·이미지 크롤러
+├── chatbot/                  # AI RAG 챗봇
+├── data/                     # 원본 XLSX · CSV
+├── docs/                     # WBS · 요구사항정의서 · 아키텍처
+└── db/images/                # 이미지 로컬 백업
+```
+
+---
+
+## 12. 실행 방법
+
 ```bash
-# Windows
+# 1. 가상환경 & 패키지
 python -m venv myvenv
-myvenv\Scripts\activate
-
-# Mac/Linux
-python3 -m venv myvenv
-source myvenv/bin/activate
-```
-
-### 3단계: 패키지 설치
-```bash
+myvenv\Scripts\activate          # Windows
 pip install -r requirements.txt
-```
 
-### 4단계: 환경 변수 설정
-```bash
-# .env 파일 생성 (템플릿: .env.example)
+# 2. 환경 변수 (.env.example 참고)
 cp .env.example .env
 
-# .env 내용 수정:
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=your_password
-MYSQL_DATABASE=car_bti
-
-# 네이버 뉴스 검색 API
-NAVER_CLIENT_ID=your_naver_client_id
-NAVER_CLIENT_SECRET=your_naver_client_secret
-
-# AI 상담 챗봇 (Google Gemini, 무료) — 없어도 앱은 '기본 모드'로 동작
-GEMINI_API_KEY=your_gemini_api_key
-GEMINI_CHAT_MODEL=gemini-2.5-flash
-GEMINI_EMBED_MODEL=gemini-embedding-001
-```
-
-### 5단계: 데이터 처리 및 DB 적재
-
-```bash
-# Step 1: Excel → CSV 변환 (국토부 데이터)
+# 3. 데이터 적재
 python prepare_data.py
-# → data/region_stats.csv 생성
-
-# Step 2: DB 생성 + persona_cars, company_faq 테이블 생성 + 시드 삽입
 python setup_db.py
-
-# Step 3: CSV → MySQL region_stats 테이블 적재
 python load_to_mysql.py
-
-# Step 4: 브랜드 공식 FAQ 크롤링
 python crawler/crawl_brand_faq.py
-# (시간 소요: 5~10분, Selenium 기반)
-
-# Step 5: K Car 옥션 FAQ 크롤링
 python crawler/crawl_faq.py
-
-# Step 6: 차량 이미지 크롤링 
 python crawler/crawl_car_images.py
-
-# Step 7: DB 적재 상태 점검
 python check_db.py
-```
 
-### 6단계: Streamlit 실행
-```bash
+# 4. 실행
 streamlit run app.py
 ```
 
-브라우저가 자동으로 열리고, 기본 주소는 `http://localhost:8501`
+브라우저: `http://localhost:8501`
 
 ---
 
-## 📂 프로젝트 구조
+## 13. 데이터 출처 및 크롤링
 
-```
-SKN34-1st-3Team/
-├── app.py                          # Streamlit 대시보드 (3 탭)
-├── prepare_data.py                 # XLSX → CSV (4축 비율 계산)
-├── load_to_mysql.py                # CSV → MySQL region_stats 적재
-├── setup_db.py                     # persona_cars, company_faq 테이블 생성 + 시드
-├── db_config.py                    # MySQL 연결 헬퍼
-├── news_api.py                     # 네이버 뉴스 검색 API 호출 및 뉴스 데이터 정제
-├── check_db.py                     # DB 적재 상태 점검
-├── requirements.txt                # 패키지 목록
-├── .env.example                    # 환경 변수 템플릿
-├── .gitignore                      # Git 제외 파일
-├── README.md                       # (이 파일)
-├── data/
-│   ├── 2026년_05월_자동차_등록자료_통계.xlsx  # 원본 국토부 데이터
-│   └── region_stats.csv            # 처리된 지역 통계 (17행)
-├── crawler/
-│   ├── crawl_brand_faq.py          # 7개 브랜드 공식 FAQ
-│   ├── crawl_car_images.py         # 위키피디아 차량 이미지
-│   ├── crawl_faq.py                # K Car 옥션 FAQ (Selenium)
-│   ├── faq_common.py               # 공통 유틸 (auto_tag, categorize)
-│   └── faq_fallback.py             # 크롤링 불가 브랜드 시드 (15건)
-├── chatbot/                        # 💬 AI 상담 챗봇 (RAG)
-│   ├── __init__.py                 # 패키지 진입점 (ChatContext, render_chatbot)
-│   ├── llm_client.py               # LLM/임베딩 호출 추상화 (Gemini, 폴백 지원)
-│   ├── retriever.py                # company_faq RAG 검색 (임베딩 ↔ 키워드)
-│   ├── prompts.py                  # 시스템 프롬프트
-│   ├── intents.py                  # 의도 분류 + 참고자료 조립 + 답변 생성
-│   └── ui.py                       # Streamlit 챗봇 UI
-└── db/
-    └── images/                     # 로컬 이미지 백업 (gitignore)
-```
+| 구분 | 출처 | 수집 방식 |
+|------|------|-----------|
+| 지역 통계 | 국토교통부 등록자료 | XLSX → CSV → MySQL |
+| 브랜드 FAQ | 제네시스·현대·기아·BMW 등 | HTML / REST API / Selenium |
+| K Car 옥션 FAQ | kcarauction.com | Selenium (6탭) |
+| 차량 이미지 | 위키피디아 | requests + BeautifulSoup |
+| 뉴스 | 네이버 뉴스 검색 API | 실시간 조회 (DB 미저장) |
+| AI | Google Gemini | RAG 답변 생성 |
+
+크롤링 불가 브랜드(벤츠·테슬라 등)는 `faq_fallback.py` 시드 FAQ로 대체합니다.
 
 ---
 
-## 🗄️ 데이터베이스 구조 (ERD)
+## 14. 참고 자료
 
-### region_stats (17행)
-국토부 Excel에서 추출한 **시도별 4축 비율** 데이터.
-
-| PK | 친환경 | 대형 | 여성 | 수입 | 페르소나 |
-|---|---|---|---|---|---|
-| region | eco_count, eco_ratio | large_count, large_ratio | female_count, female_ratio | import_count, import_ratio | persona_code |
-
-**임계값 (비율 기준)**:
-- 친환경 ≥ 14.0% → E, < 14.0% → G
-- 대형 ≥ 14.8% → L, < 14.8% → S
-- 여성 ≥ 27.5% → F, < 27.5% → M
-- 수입 ≥ 12.0% → I, < 12.0% → D
-
-**예시**:
-```
-서울: eco_ratio=14.64 (E), large_ratio=17.21 (L), female_ratio=26.73 (M), import_ratio=22.99 (I)
-→ persona_code = "ELMI"
-```
-
----
-
-
-## 📊 화면 구성
-
-### Tab 1: 🗺️ 지역 분석
-
-**A. 지도 시각화**
-- 5가지 모드 토글 (친환경, 대형, 여성, 수입, 16색 페르소나)
-- Folium 기반 인터랙티브 지도
-
-**B. 지역 분석 패널 (오른쪽)**
-- 페르소나 코드 박스 (고유 색상)
-- 페르소나 한 줄 요약
-- 4축 레이더 차트
-- 페르소나 4축 상세 설명
-- 차량 통계 progress bar 4개
-
-**C. 페르소나 범례**
-- 16색 시각화 (ESMD부터 GLFI까지)
-
-**D. 페르소나 매칭 차량**
-- 4대 카드 (이미지 + 브랜드 + 가격 + 추천 사유)
-
-**E. 추천 차량 관련 최신 뉴스**
-- 추천 차량 브랜드/모델 기반 네이버 뉴스 API 검색
-- 최신순 뉴스 제목, 요약, 발행 시각, 원문 링크 제공
-
-**F. 성향 맞춤 FAQ**
-- Top 10 (브랜드별 라운드로빈 + 점수 표시)
-
-### Tab 2: 🧪 나의 Car-BTI 테스트
-
-**A. 4문항 진단**
-- Q1: 친환경 vs 내연
-- Q2: 대형 vs 소형
-- Q3: 남성 vs 여성
-- Q4: 수입 vs 국산
-
-**B. 결과 화면**
-- 본인 페르소나 박스 (한 줄 요약)
-- 4축 분석
-- 가장 비슷한 지역 Top 3 (일치 자리수)
-- 맞춤형 차량 4대
-- 추천 차량/브랜드 관련 최신 자동차 뉴스
-- 맞춤형 FAQ Top 10
-
-### Tab 3: 💬 AI 상담 챗봇
-
-- **대화형 상담**: FAQ 질문 · 성향 진단 · 차량 추천 · 뉴스를 하나의 챗 창에서 처리
-- **모드 배지**: 상단에 🟢 AI 모드 / 🟡 기본 모드 표시
-- **예시 질문 버튼**: 처음 진입 시 추천 질문 제공
-- **대화 초기화 버튼**: 세션 대화 기록 리셋
-
----
-
-## 🌐 데이터 출처 및 크롤링
-
-### 지역 통계 (region_stats)
-- **원본**: 국토교통부 2026년 5월 자동차 등록자료 통계
-- **처리**: `prepare_data.py` (xlsx → csv) + `load_to_mysql.py`
-- **데이터**: 17개 시도, 14개 컬럼 (eco/large/female/import 각 count/total/ratio)
-
-### 브랜드 공식 FAQ (company_faq)
-- **제네시스**: 공식 FAQ 페이지 HTML 크롤링
-- **현대**: 고객센터 REST API
-- **기아**: FAQ 검색 API
-- **BMW/미니**: Salesforce 포털 (Selenium)
-- **벤츠/테슬라/볼보/아우디/쉐보레**: 공식 사이트 크롤링 실패 → `faq_fallback.py` 시드 15건
-- **K Car 옥션**: Selenium 기반 6개 탭 크롤링
-
-**총 적재 건수**: 약 750+건
-
-### 차량 이미지 (persona_cars)
-- **출처**: 영문 위키피디아 차량 인포박스
-- **저장 방식**: MySQL LONGBLOB + 로컬 백업 (`db/images/`)
-- **크롤링 결과**: 64개 모두 성공
-
-### 자동차 뉴스 API
-- **출처**: 네이버 뉴스 검색 API
-- **방식**: 추천 차량 브랜드/모델명을 검색어로 조합해 최신 뉴스 조회
-- **정렬**: `sort=date` 옵션으로 최신순 조회
-- **저장 방식**: DB 저장 없이 Streamlit 실행 중 실시간 조회
-- **환경 변수**: `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`
-
----
-
-## 🤖 AI 상담 챗봇 (RAG) 구조
-
-### 동작 흐름
-```
-사용자 입력
-   │
-   ├─ 의도 분류(intents.classify_intent): FAQ / 진단 / 추천 / 뉴스 / 지역
-   │
-   ├─ 관련 FAQ 검색(retriever.search_faq)
-   │     ├─ Gemini 키 O → 임베딩 코사인 유사도 (의미 기반)
-   │     └─ Gemini 키 X → 키워드/문자 n-gram 겹침 (폴백)
-   │
-   ├─ [참고 자료] 조립(prompts.build_context_block)
-   │     : 관련 FAQ + (추천 시)차량 카탈로그 + (지역 시)지역 요약 + (뉴스 시)뉴스
-   │
-   └─ 답변 생성
-         ├─ AI 모드   → LLM이 근거 기반으로 자연어 답변(+출처 표기)
-         └─ 기본 모드 → 검색된 FAQ/추천 차량을 그대로 정리해 응답
-```
-
-### 두 가지 실행 모드
-| 모드 | 조건 | 동작 |
-|---|---|---|
-| 🟢 **AI 모드** | `GEMINI_API_KEY` 설정됨 | 임베딩 의미검색 + LLM 대화형 답변 |
-| 🟡 **기본 모드** | 키 없음 | 키워드 검색 + 규칙 기반 답변 (앱은 정상 동작) |
-
-> 키가 없어도 앱이 죽지 않도록 설계했습니다. 발표/데모 환경에 맞춰 키를 켜고 끌 수 있습니다.
-
-### Gemini API 키 발급 방법 (무료)
-1. <https://aistudio.google.com/app/apikey> 접속 → Google 계정 로그인
-2. **Create API key**(API 키 만들기) 클릭
-3. 생성된 키를 복사해 `.env` 의 `GEMINI_API_KEY` 에 붙여넣기
-4. 별도 결제 없이 무료 티어로 사용 가능 (`gemini-2.5-flash` + `gemini-embedding-001`)
-
----
-
-
-## 📚 참고 자료
-
-- [Streamlit 공식 문서](https://docs.streamlit.io/)
-- [Folium 지도 시각화](https://folium.readthedocs.io/)
-- [BeautifulSoup 웹 크롤링](https://www.crummy.com/software/BeautifulSoup/)
-- [Selenium 자동화](https://selenium-python.readthedocs.io/)
-- [MySQL Python Connector](https://dev.mysql.com/doc/connector-python/en/)
+- [Streamlit](https://docs.streamlit.io/)
+- [Folium](https://folium.readthedocs.io/)
+- [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/)
+- [Selenium](https://selenium-python.readthedocs.io/)
 - [네이버 뉴스 검색 API](https://developers.naver.com/docs/serviceapi/search/news/news.md)
-- [네이버 오픈API 목록](https://developers.naver.com/docs/common/openapiguide/apilist.md)
+- [Google AI Studio (Gemini API)](https://aistudio.google.com/app/apikey)
 
----
+### 관련 문서 (`docs/`)
 
-**Last Updated**: 2026-07-01  
+| 파일 | 설명 |
+|------|------|
+| `docs/WBS.csv` | 작업 분해 구조 |
+| `docs/요구사항정의서.csv` | 요구사항 정의 |
+| `docs/아키텍처_기능흐름도.md` | 상세 아키텍처·흐름도 |
+
+Last Updated: 2026-07-02 09:45

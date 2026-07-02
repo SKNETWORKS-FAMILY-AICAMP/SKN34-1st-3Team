@@ -1,0 +1,36 @@
+﻿구분,작업,기능상세,완료여부
+기획 및 설계,주제 선정,Car-BTI(자동차 소비성향 4축 16유형) 컨셉 확정,완료
+기획 및 설계,데이터 탐색,국토부 자동차 등록자료 통계 확보·분석,완료
+기획 및 설계,ERD 작성,region_stats·persona_cars·company_faq 설계,완료
+기획 및 설계,WBS 작성,작업 분해 및 일정 정의,완료
+기획 및 설계,Git 브랜치 전략 정의,브랜치/커밋 규칙 수립,완료
+기획 및 설계,디자인 컨셉 정의,16색 페르소나·대시보드 UI 컨셉,완료
+기획 및 설계,프로젝트 디렉터리 구조 설정,crawler·chatbot·data 등 구조화,완료
+기획 및 설계,프로젝트 생성,저장소·가상환경·의존성 초기화,완료
+개발-DB구축,MySQL DB 생성,car_bti 데이터베이스 생성,완료
+개발-DB구축,TABLE 생성,region_stats·persona_cars·company_faq 생성,완료
+개발-DB구축,크롤링 데이터 연동,FAQ·차량 이미지 DB 적재,완료
+개발-DB구축,API 데이터 연동,뉴스·지도 데이터 연동,완료
+개발-데이터 처리,XLSX→CSV 변환,prepare_data.py로 4축 비율 계산,완료
+개발-데이터 처리,페르소나 코드 산출,임계값 기준 4자리 코드 부여,완료
+개발-데이터 처리,CSV→MySQL 적재,load_to_mysql.py로 region_stats 적재,완료
+개발-웹 크롤링,브랜드 공식 FAQ 크롤링,제네시스·현대·기아·BMW·미니 등,완료
+개발-웹 크롤링,K Car 옥션 FAQ 크롤링,Selenium 6개 탭 수집,완료
+개발-웹 크롤링,차량 이미지 크롤링,위키피디아 인포박스 이미지 수집,완료
+개발-웹 크롤링,Fallback 시드 구성,크롤링 불가 브랜드 대표 FAQ,완료
+개발-API 콜 및 변환,네이버 뉴스 API KEY 발급,Client ID/Secret 발급·환경변수 관리,완료
+개발-API 콜 및 변환,뉴스 API 호출 및 정제,news_api.py 최신 뉴스 조회,완료
+개발-API 콜 및 변환,지도 API 콜,GeoJSON 시도 경계 데이터 로드,완료
+개발-API 콜 및 변환,Gemini API KEY 발급,챗봇용 무료 API 키 발급,완료
+개발-STREAMLIT 구현,Main Page/헤더 구현,타이틀·축 설명·탭 구성,완료
+개발-STREAMLIT 구현,지역 분석 Page 구현,지도 5모드·레이더 차트,완료
+개발-STREAMLIT 구현,페르소나 매칭 차량 구현,1:1 추천 차량 카드,완료
+개발-STREAMLIT 구현,성향 맞춤 FAQ 구현,브랜드별 라운드로빈 FAQ,완료
+개발-STREAMLIT 구현,추천 차량 뉴스 섹션 구현,네이버 뉴스 연동 표시,완료
+개발-STREAMLIT 구현,나의 Car-BTI 테스트 Page 구현,4문항 진단→결과 분석,완료
+개발-AI 상담 챗봇,Gemini LLM/임베딩 연동,llm_client.py(폴백 포함),완료
+개발-AI 상담 챗봇,FAQ RAG 검색 구현,retriever.py 의미/키워드 검색,완료
+개발-AI 상담 챗봇,의도 분류·답변 생성,intents.py 오케스트레이션,완료
+개발-AI 상담 챗봇,AI 챗봇 Page 구현,ui.py 대화형 상담 탭,완료
+테스트 및 마무리,DB 적재 점검,check_db.py 상태 점검,완료
+테스트 및 마무리,README/문서화,실행법·구조·설정 가이드,완료

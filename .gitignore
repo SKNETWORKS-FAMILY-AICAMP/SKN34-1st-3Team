@@ -1,7 +1,5 @@
 # 가상환경
 myvenv/
-venv/
-.venv/
 
 # 파이썬 캐시
 __pycache__/
@@ -15,9 +13,6 @@ __pycache__/
 db/
 *.sqlite
 *.db
-
-# 전처리 산출물 (prepare_data.py 실행 시 생성)
-data/region_stats.csv
 
 # Streamlit secrets
 .streamlit/secrets.toml

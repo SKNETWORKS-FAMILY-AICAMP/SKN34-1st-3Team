@@ -1,7 +1,7 @@
 """
 news_api.py
 ===========
-네이버 뉴스 검색 API를 이용해 추천 차량/브랜드 관련 최신 자동차 뉴스를 가져온다.
+네이버 뉴스 검색 API를 이용해 추천 차량/브랜드 관련 최신 자동차 뉴스를 가져옴
 """
 
 from __future__ import annotations
@@ -20,19 +20,19 @@ NAVER_NEWS_URL = "https://openapi.naver.com/v1/search/news.json"
 
 
 def has_naver_news_keys() -> bool:
-    """네이버 뉴스 API 호출에 필요한 환경변수가 있는지 확인."""
+    """네이버 뉴스 API 호출에 필요한 환경변수가 있는지 확인"""
     return bool(os.getenv("NAVER_CLIENT_ID") and os.getenv("NAVER_CLIENT_SECRET"))
 
 
 def _clean_html(text: str) -> str:
-    """네이버 API 응답의 <b> 태그와 HTML 엔티티 제거."""
+    """네이버 API 응답의 <b> 태그와 HTML 엔티티 제거"""
     text = html.unescape(text or "")
     text = re.sub(r"<[^>]+>", "", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
 def _format_pub_date(pub_date: str) -> str:
-    """네이버 pubDate 형식을 화면에 보기 좋은 형태로 변환."""
+    """네이버 pubDate 형식을 화면에 보기 좋은 형태로 변환"""
     if not pub_date:
         return ""
 
@@ -45,7 +45,7 @@ def _format_pub_date(pub_date: str) -> str:
 
 def build_news_query(brands: list[str], car_models: list[str] | None = None) -> str:
     """
-    추천 브랜드/차량명을 기반으로 뉴스 검색어 생성.
+    추천 브랜드/차량명을 기반으로 뉴스 검색어 생성
 
     예:
       brands=["테슬라", "BMW"], car_models=["Model 3"]
@@ -70,7 +70,7 @@ def build_news_query(brands: list[str], car_models: list[str] | None = None) -> 
 
 def fetch_naver_news(query: str, display: int = 6, sort: str = "date") -> list[dict]:
     """
-    네이버 뉴스 검색 API 호출.
+    네이버 뉴스 검색 API 호출
 
     sort:
       - "date": 날짜순

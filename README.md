@@ -7,7 +7,7 @@
 
 **SKN34기 3팀**
 
-| 이름 | 담당 업무 | GitHub |
+| 이름 | 역할 | GitHub |
 |------|-----------|--------|
 | 노민환 | 팀장 / 파이프라인 설계 / 데이터 정제 / 뉴스 API 연동 / Streamlit GUI 설계 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/minhwan123) |
 | 김대호 |  | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/jjhok6389) |

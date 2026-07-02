@@ -71,7 +71,9 @@ def _corpus_embeddings(docs: list[str]) -> np.ndarray | None:
     if key in _EMB_CACHE:
         return _EMB_CACHE[key]
     try:
-        vecs = np.asarray(llm_client.embed(docs), dtype=float)
+        vecs = np.asarray(
+            llm_client.embed(docs, task_type="RETRIEVAL_DOCUMENT"), dtype=float
+        )
     except Exception:
         return None
     _EMB_CACHE[key] = vecs
@@ -80,14 +82,11 @@ def _corpus_embeddings(docs: list[str]) -> np.ndarray | None:
 
 def _cosine_scores(query: str, corpus_vecs: np.ndarray) -> np.ndarray | None:
     try:
-        q_vec = np.asarray(llm_client.embed([query])[0], dtype=float)
+        q_vec = np.asarray(
+            llm_client.embed([query], task_type="RETRIEVAL_QUERY")[0], dtype=float
+        )
     except Exception:
         return None
-    corpus_norm = np.linalg.norm(corpus_vecs, axis=1)
-    q_norm = np.linalg.norm(q_vec)
-    denom = corpus_norm * q_norm
-    denom[denom == 0] = 1e-9
-    return (corpus_vecs @ q_vec) / denom
 
 
 # ────────────────────────────────────────

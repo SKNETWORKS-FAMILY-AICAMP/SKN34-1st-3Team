@@ -139,6 +139,13 @@ VIZ_MODES = {
     "🌈 16색 페르소나": (None, None, None),
 }
 
+VIZ_MODE_TO_COUNT = {
+    "⚡ 친환경 차량 비율": ("eco_count",    "eco_ratio",    "친환경 차량",  "#22c55e"),
+    "🚙 대형 승용차 비율": ("large_count",  "large_ratio",  "대형 승용차",  "#f97316"),
+    "👩 여성 등록 비율":  ("female_count", "female_ratio", "여성 등록",   "#a855f7"),
+    "🌍 수입차 비중":     ("import_count", "import_ratio", "수입차",     "#3b82f6"),
+}
+
 
 # ════════════════════════════════════════
 # 데이터 로딩
@@ -154,27 +161,33 @@ def load_geojson():
 
 @st.cache_data(ttl=300)
 def load_region_stats():
-    """MySQL `region_stats`(prepare_data.py+load_to_mysql.py 적재)에서 17개 시도 데이터 로드.
+    """MySQL `region_stats`에서 17개 시도 × N개월 (year_month 기준) 데이터 로드.
 
-    팀 저장소 스키마: region(짧은 시도명), eco_ratio, large_ratio,
-    female_ratio, import_ratio, persona_code(4자리 [E/G][L/S][F/M][I/D]) 등.
+    팀 저장소 스키마: year_month(YYYY-MM 등), region(짧은 시도명), eco_ratio,
+    large_ratio, female_ratio, import_ratio, persona_code(4자리 [E/G][L/S][F/M][I/D]) 등.
+    2025-12 ~ 2026-05 총 6개월치가 적재되어 있으며, 이 함수는 전체를 반환하고
+    월 필터링은 호출부(Tab 1)에서 수행한다.
     """
     try:
         engine = get_engine()
         with engine.connect() as conn:
-            df = pd.read_sql("SELECT * FROM region_stats ORDER BY region", conn)
+            df = pd.read_sql(
+                "SELECT * FROM region_stats ORDER BY `year_month` DESC, `region`",
+                conn,
+            )
     except Exception as exc:
         st.error(f"❌ region_stats 로드 실패: {exc}")
-        st.info(
-            "→ `python prepare_data.py` 후 `python load_to_mysql.py` 를 먼저 실행해 "
-            "region_stats 를 적재하세요."
-        )
+        st.info("→ MySQL 연결 설정 및 region_stats 테이블 존재 여부를 확인해주세요.")
         st.stop()
 
     if df.empty:
         st.error("❌ region_stats 가 비어 있습니다.")
-        st.info("→ `python prepare_data.py` → `python load_to_mysql.py` 를 실행하세요.")
+        st.info("→ region_stats 테이블에 데이터가 존재하는지 확인해주세요.")
         st.stop()
+
+    # year_month 를 문자열로 표준화 (DATE/INT 타입도 문자열 비교/정렬 가능하게)
+    if "year_month" in df.columns:
+        df["year_month"] = df["year_month"].astype(str)
 
     df["region_full"] = df["region"].map(REGION_FULL_MAP).fillna(df["region"])
     return df
@@ -240,8 +253,24 @@ def load_news_articles(query: str, display: int = 6):
     
 
 geojson_data = load_geojson()
-df_stats = load_region_stats()
+df_stats_all = load_region_stats()   # ← 102행 전체
 faq_df, cars_df = load_db()
+
+# ── 월 선택용 옵션 (최신 → 과거 순) ──
+AVAILABLE_MONTHS = sorted(df_stats_all["year_month"].unique(), reverse=True)
+
+def format_month(ym: str) -> str:
+    """selectbox 표시용 포맷터: '2026-05' → '2026년 5월'."""
+    s = str(ym).strip()
+    if len(s) >= 7 and s[4] == "-":          # '2026-05' 또는 '2026-05-01'
+        y, mo = s[:4], s[5:7]
+    elif len(s) == 6 and s.isdigit():         # '202605'
+        y, mo = s[:4], s[4:]
+    elif len(s) == 8 and s.isdigit():         # '20260501'
+        y, mo = s[:4], s[4:6]
+    else:
+        return s
+    return f"{y}년 {int(mo)}월"
 
 
 # ════════════════════════════════════════
@@ -309,7 +338,7 @@ def make_radar(region: str, row) -> go.Figure:
             angularaxis=dict(tickfont=dict(size=13)),
         ),
         showlegend=False,
-        height=320,
+        height=340,
         margin=dict(t=20, b=20, l=40, r=40),
     )
     return fig
@@ -322,6 +351,65 @@ def persona_desc_html(persona: str) -> str:
         parts.append(f"{emoji} <b>{label}</b> — {AXIS_DESC[c]}<br>")
     return "".join(parts)
 
+def make_trend_chart(
+    df_all: pd.DataFrame,
+    region: str,
+    y_col: str,
+    label: str,
+    color: str,
+    is_ratio: bool = False,
+) -> go.Figure:
+    """지정 지역의 6개월치 y_col 시계열 라인 차트."""
+    sub = (
+        df_all[df_all["region"] == region]
+        .sort_values("year_month")
+        .reset_index(drop=True)
+    )
+
+    x = sub["year_month"].apply(format_month).tolist()
+    y = sub[y_col].tolist()
+
+    hover_suffix = "%" if is_ratio else "대"
+    hover_fmt = ":.2f" if is_ratio else ":,.0f"
+
+    def _hex_to_rgba(hex_color: str, alpha: float = 0.13) -> str:
+        h = hex_color.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+    
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x,
+        y=y,
+        mode="lines+markers",
+        line=dict(color=color, width=3, shape="spline", smoothing=0.6),
+        marker=dict(size=9, color=color, line=dict(color="white", width=2)),
+        fill="tozeroy",
+        fillcolor=_hex_to_rgba(color, 0.13),
+        hovertemplate=f"<b>%{{x}}</b><br>{label}: %{{y{hover_fmt}}}{hover_suffix}<extra></extra>",
+    ))
+    # y축 정규화: 0부터가 아니라 데이터 min~max 주변으로 확대
+    y_min, y_max = min(y), max(y)
+    span = y_max - y_min
+    pad = span * 0.35 if span > 0 else max(abs(y_max) * 0.05, 1)
+    y_range = [y_min - pad, y_max + pad]
+
+    fig.update_layout(
+        height=280,
+        margin=dict(t=10, b=30, l=50, r=20),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(showgrid=False, tickfont=dict(size=12)),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="rgba(148, 163, 184, 0.2)",
+            tickfont=dict(size=11),
+            range=y_range,
+        ),
+        showlegend=False,
+    )
+    return fig
 
 def render_recommended_cars(persona: str, cars: pd.DataFrame):
     """단일 차량 프로필 카드 UI."""
@@ -511,7 +599,7 @@ def on_region_input():
     user_input = st.session_state.get("region_input", "").strip()
     if not user_input:
         return
-    for r in df_stats["region"].values:
+    for r in df_stats_all["region"].unique():   # 지역 목록은 월과 무관
         if user_input[:2] in r:
             st.session_state.selected_region = r
             return
@@ -601,7 +689,22 @@ with tab1:
     col_map, col_info = st.columns([5, 5])
 
     with col_map:
-        st.subheader("📍 전국 Car-BTI 지도")
+        hdr_col, mon_col = st.columns([3, 2])
+        with hdr_col:
+            st.subheader("📍 전국 Car-BTI 지도")
+        with mon_col:
+            selected_month = st.selectbox(
+                "📅 조회 월",
+                options=AVAILABLE_MONTHS,
+                index=0,                       # 최신 월 (2026-05) 기본
+                key="selected_month",
+                format_func=format_month,
+            )
+
+        # 선택된 월로 필터 → 이후 Tab 1 전 구간이 이 df_stats 를 사용
+        df_stats = df_stats_all[
+            df_stats_all["year_month"] == selected_month
+        ].reset_index(drop=True)
 
         m = folium.Map(location=[36.5, 127.5], zoom_start=7, tiles="CartoDB positron")
         col, palette, label = VIZ_MODES[viz_mode]
@@ -641,27 +744,65 @@ with tab1:
                 tooltip=folium.features.GeoJsonTooltip(fields=["name"], aliases=["지역:"]),
             ).add_to(m)
 
-        map_data = st_folium(m, width=600, height=500, key=f"map_{viz_mode}")
+        map_data = st_folium(m, width=600, height=500, key=f"map_{viz_mode}_{selected_month}")
         if map_data and map_data.get("last_active_drawing"):
             clicked = map_data["last_active_drawing"]["properties"]["name"]
             for _, rrow in df_stats.iterrows():
                 if rrow["region_full"].startswith(clicked[:2]) or clicked.startswith(rrow["region"][:2]):
                     st.session_state.selected_region = rrow["region"]
                     break
+                
+        # ── 선택 지역 확정 (지도 클릭 반영 후) ──
+        selected = st.session_state.selected_region
+        if selected not in df_stats["region"].values:
+            selected = df_stats["region"].iloc[0]
+            st.session_state.selected_region = selected
 
-        if col is None:
-            with st.expander("🎨 16색 페르소나 범례"):
-                legend_cols = st.columns(4)
-                for i, (p, c) in enumerate(PERSONA_COLORS.items()):
-                    with legend_cols[i % 4]:
-                        st.markdown(
-                            f"<div style='display:flex;align-items:center;gap:6px;padding:2px 0'>"
-                            f"<div style='width:16px;height:16px;background:{c};"
-                            f"border:1px solid #555;border-radius:3px'></div>"
-                            f"<span style='font-family:monospace;font-size:13px'>{p}</span>"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
+        # ── 6개월 변화 추이 (라디오 버튼 기준) ──
+        count_col, ratio_col, mode_label, line_color = VIZ_MODE_TO_COUNT.get(
+            viz_mode,
+            ("eco_count", "eco_ratio", "친환경 차량", "#22c55e"),
+        )
+
+        if viz_mode == "🌈 16색 페르소나":
+            st.subheader("📈 6개월 변화 추이")
+            st.info(
+                "라디오 버튼에서 **친환경 / 대형 / 여성 / 수입** 중 하나를 선택하면 "
+                "해당 지표의 6개월 변화 추이를 볼 수 있어요."
+            )
+        else:
+            st.subheader(f"📈 {selected} · {mode_label} 6개월 변화 추이")
+
+            sub = df_stats_all[df_stats_all["region"] == selected].sort_values("year_month")
+
+            if sub.empty or count_col not in df_stats_all.columns:
+                st.info(f"⚠️ '{count_col}' 컬럼이 없거나 해당 지역 데이터가 없습니다.")
+            else:
+                first_val = sub[count_col].iloc[0]
+                last_val = sub[count_col].iloc[-1]
+                delta_pct = ((last_val - first_val) / first_val * 100) if first_val else 0
+
+                metric_col1, metric_col2 = st.columns(2)
+                with metric_col1:
+                    st.metric(f"{mode_label} 최신 등록 수", f"{int(last_val):,} 대")
+                with metric_col2:
+                    st.metric("시작 대비 증감률", f"{delta_pct:+.2f}%")
+
+                st.plotly_chart(
+                    make_trend_chart(
+                        df_stats_all,
+                        region=selected,
+                        y_col=count_col,
+                        label=f"{mode_label} 등록 수",
+                        color=line_color,
+                        is_ratio=False,
+                    ),
+                    use_container_width=True,
+                )
+
+                st.caption(
+                    f"💡 지도의 다른 지역을 클릭하거나 라디오 버튼을 바꾸면 그래프가 갱신됩니다."
+                )
 
     with col_info:
         st.subheader("🔍 지역 분석")
@@ -671,10 +812,6 @@ with tab1:
             on_change=on_region_input,
         )
 
-        selected = st.session_state.selected_region
-        if selected not in df_stats["region"].values:
-            selected = df_stats["region"].iloc[0]
-            st.session_state.selected_region = selected
         region_data = df_stats[df_stats["region"] == selected].iloc[0]
         persona = region_data["persona_code"]
         full_name = region_data["region_full"]
@@ -726,6 +863,11 @@ with tab1:
 # Tab 2: 나의 Car-BTI 테스트
 # ════════════════════════════════════════
 with tab2:
+    # 개인 진단 탭은 최신 월 데이터 기준으로 유사 지역을 찾는다
+    df_stats = df_stats_all[
+        df_stats_all["year_month"] == AVAILABLE_MONTHS[0]
+    ].reset_index(drop=True)
+
     st.subheader("🧪 나의 Car-BTI 테스트")
     st.caption("4가지 질문에 답하시면 본인의 Car-BTI와 가장 비슷한 지역, 1:1 매칭 차량, 맞춤 FAQ를 보여드립니다.")
 
@@ -828,6 +970,10 @@ def _chatbot_news_fn(brands: list[str], models: list[str]) -> list[dict]:
 
 
 with tab3:
+    df_stats = df_stats_all[
+        df_stats_all["year_month"] == AVAILABLE_MONTHS[0]
+    ].reset_index(drop=True)
+
     chat_ctx = ChatContext(
         faq_df=faq_df,
         cars_df=cars_df,

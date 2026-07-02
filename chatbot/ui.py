@@ -38,9 +38,9 @@ def _ensure_state() -> None:
 
 def _send(prompt: str, ctx: ChatContext) -> None:
     history = st.session_state[_SESSION_KEY]
-    history.append({"role": "user", "content": prompt})
     with st.spinner("답변을 준비하고 있어요..."):
         reply = answer(prompt, history, ctx)
+    history.append({"role": "user", "content": prompt})
     history.append({"role": "assistant", "content": reply})
 
 

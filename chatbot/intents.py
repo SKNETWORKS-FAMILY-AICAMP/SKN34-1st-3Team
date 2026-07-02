@@ -144,9 +144,12 @@ def _history_messages(history: list[dict], limit: int = 8) -> list[dict]:
 def answer(query: str, history: list[dict], ctx: ChatContext) -> str:
     """사용자 질문 → 챗봇 답변 텍스트."""
     intent = classify_intent(query)
-    faq_hits = search_faq(query, ctx.faq_df, top_k=4)
+    
+    # FAQ는 필요한 경우만 검색 (항상 검색 X)
+    faq_hits = []
+    if intent in ("faq", "diagnose"):
+        faq_hits = search_faq(query, ctx.faq_df, top_k=2)
 
-    # 대화 맥락 + 이번 질문에서 페르소나 코드 추출
     persona = detect_persona(query)
     if persona is None:
         for m in reversed(history):
@@ -157,11 +160,14 @@ def answer(query: str, history: list[dict], ctx: ChatContext) -> str:
     car_catalog = None
     region_summary = None
     news_block = None
-    if intent in ("recommend", "diagnose"):
-        car_catalog = _car_catalog(ctx.cars_df, persona)
-    if intent == "region":
+    
+    if intent == "recommend":
+        car_catalog = _car_catalog(ctx.cars_df, persona, limit=6)
+    elif intent == "diagnose":
+        car_catalog = _car_catalog(ctx.cars_df, persona, limit=3)
+    elif intent == "region":
         region_summary = _region_summary(ctx.region_df)
-    if intent == "news":
+    elif intent == "news":
         news_block = _news_block(ctx, persona)
 
     context_block = prompts.build_context_block(

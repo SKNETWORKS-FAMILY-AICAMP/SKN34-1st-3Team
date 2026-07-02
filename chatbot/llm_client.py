@@ -90,7 +90,7 @@ def chat(
     messages: list[dict],
     model: str | None = None,
     temperature: float = 0.3,
-    max_tokens: int = 900,
+    max_tokens: int = 500,
 ) -> str:
     """대화 메시지 리스트 → 어시스턴트 답변 텍스트."""
     from google.genai import types
@@ -100,22 +100,38 @@ def chat(
         system_instruction=system_instruction or None,
         temperature=temperature,
         max_output_tokens=max_tokens,
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
     )
     resp = _client().models.generate_content(
         model=model or DEFAULT_CHAT_MODEL,
         contents=contents,
         config=config,
     )
-    return (resp.text or "").strip()
+
+    text = (resp.text or "").strip()
+    if not text:
+        candidates = getattr(resp, "candidates", None) or []
+        finish_reason = candidates[0].finish_reason if candidates else "UNKNOWN"
+        raise RuntimeError(f"empty response (finish_reason={finish_reason})")
+    return text
 
 
-def embed(texts: list[str], model: str | None = None) -> list[list[float]]:
+def embed(
+    texts: list[str],
+    model: str | None = None,
+    task_type: str = "RETRIEVAL_DOCUMENT",
+) -> list[list[float]]:
     """텍스트 리스트 → 임베딩 벡터 리스트. (대량은 배치로 나눠 호출)"""
+    from google.genai import types
     model = model or DEFAULT_EMBED_MODEL
     vectors: list[list[float]] = []
     batch_size = 100  # Gemini 임베딩 배치 상한 대비 보수적으로 설정
     for start in range(0, len(texts), batch_size):
         chunk = texts[start : start + batch_size]
-        resp = _client().models.embed_content(model=model, contents=chunk)
+        resp = _client().models.embed_content(
+            model=model,
+            contents=chunk,
+            config=types.EmbedContentConfig(task_type=task_type),
+        )
         vectors.extend(list(e.values) for e in resp.embeddings)
     return vectors

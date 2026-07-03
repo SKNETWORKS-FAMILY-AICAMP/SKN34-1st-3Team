@@ -10,7 +10,7 @@
 | 이름 | 역할 | GitHub |
 |------|-----------|--------|
 | 노민환 | 팀장 / 프로토타입 제작 / 데이터 정제 / 뉴스 API 연동 / Streamlit GUI 설계 | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/minhwan123) |
-| 김대호 |  | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/jjhok6389) |
+| 김대호 | 팀원 / 웹 크롤링(FAQ·차량 이미지) / 크롤링 데이터 정제·DB 적재 / AI 상담 챗봇 설계·구현 / MySQL·Vector DB RAG 연동 / 챗봇 UI·의도분류| [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/jjhok6389) |
 | 이홍규 |  | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/4hglee-ops) |
 | 전진영 |  | [![Profile](https://img.shields.io/badge/Profile-181717?logo=github&logoColor=white)](https://github.com/msi67811-jpg) |
 
